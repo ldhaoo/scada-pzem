@@ -1,1498 +1,587 @@
 <!DOCTYPE html>
-<html lang="vi" class="dark">
+<html lang="vi">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SCADA Giám Sát Thời Gian Thực & So Sánh 10 Trạm Năng Lượng (PZEM-004T)</title>
-    
-    <!-- Google Fonts: Inter & JetBrains Mono cho số liệu kỹ thuật sắc nét -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
-    
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                        mono: ['JetBrains Mono', 'monospace'],
-                    },
-                    colors: {
-                        scada: {
-                            bg: '#060a12',
-                            surface: '#0d1424',
-                            card: '#111a2e',
-                            border: '#1e293b',
-                            accent: '#06b6d4',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SCADA Giám Sát & So Sánh 10 Trạm Năng Lượng (PZEM-004T)</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://www.unpkg.com/@eohjsc/era-widget@1.1.3/src/index.js"></script>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --panel: #111827;
+      --card: #162032;
+      --border: #26334d;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --cyan: #06b6d4;
+      --green: #10b981;
+      --amber: #f59e0b;
+      --red: #ef4444;
+    }
+    * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+    body { margin: 0; padding: 14px; background: var(--bg); color: var(--text); }
 
-    <!-- Chart.js CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    /* Top Header */
+    .top-bar {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+      padding: 14px 16px; margin-bottom: 14px;
+    }
+    .header-row {
+      display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-icon {
+      width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #0284c7, #06b6d4);
+      display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px;
+    }
+    .brand h1 { margin: 0; font-size: 16px; letter-spacing: 0.3px; }
+    .brand p { margin: 3px 0 0; font-size: 12px; color: var(--muted); }
+    .live-pill {
+      display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 99px;
+      font-size: 11px; font-weight: 700; background: rgba(16,185,129,0.15); color: var(--green);
+      border: 1px solid rgba(16,185,129,0.35);
+    }
 
-    <style>
-        /* Tùy chỉnh thanh cuộn & hiệu ứng nhấp nháy cảnh báo quá tải công nghiệp */
-        body {
-            background-color: #060a12;
-            color: #e2e8f0;
-            overflow-x: hidden;
-        }
+    /* Controls Toolbar */
+    .toolbar {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+      margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px;
+    }
+    .btn {
+      padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--card); color: var(--text); cursor: pointer; font-weight: 600; font-size: 12px;
+    }
+    .btn:hover { border-color: var(--cyan); }
+    .btn.paused { background: rgba(245,158,11,0.2); border-color: var(--amber); color: var(--amber); }
+    .btn.csv { background: rgba(16,185,129,0.15); border-color: var(--green); color: var(--green); }
+    .btn.era-connected { background: rgba(6,182,212,0.18); border-color: var(--cyan); color: var(--cyan); }
 
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #060a12;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #1e293b;
-            border-radius: 9999px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #334155;
-        }
+    .seg-group { display: inline-flex; background: var(--bg); padding: 2px; border-radius: 8px; border: 1px solid var(--border); }
+    .seg-btn {
+      padding: 4px 9px; border: none; background: transparent; color: var(--muted);
+      cursor: pointer; border-radius: 6px; font-size: 12px; font-weight: 600;
+    }
+    .seg-btn.active { background: var(--cyan); color: #082f49; }
 
-        @keyframes overloadPulse {
-            0%, 100% {
-                border-color: rgba(239, 68, 68, 0.9);
-                box-shadow: 0 0 18px rgba(239, 68, 68, 0.25);
-            }
-            50% {
-                border-color: rgba(239, 68, 68, 0.35);
-                box-shadow: 0 0 4px rgba(239, 68, 68, 0.08);
-            }
-        }
+    .thresh-input {
+      width: 68px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border);
+      background: var(--bg); color: var(--amber); font-weight: 700; font-size: 12px; text-align: center;
+    }
 
-        .card-overload {
-            animation: overloadPulse 1.4s infinite ease-in-out;
-            background: linear-gradient(180deg, rgba(127, 29, 29, 0.18) 0%, #111a2e 45%);
-        }
+    /* Mode Switch (Sync vs Sim) */
+    .mode-switch-wrap {
+      display: inline-flex; align-items: center; gap: 8px; background: var(--bg);
+      padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); margin-left: auto;
+    }
+    .switch { position: relative; display: inline-block; width: 42px; height: 22px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; cursor: pointer; inset: 0; background: var(--cyan); transition: .25s; border-radius: 22px;
+    }
+    .slider:before {
+      position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px;
+      background: #fff; transition: .25s; border-radius: 50%;
+    }
+    input:checked + .slider { background: var(--amber); }
+    input:checked + .slider:before { transform: translateX(20px); }
 
-        .tabular-nums {
-            font-variant-numeric: tabular-nums;
-        }
-    </style>
+    /* KPI Cards */
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 14px;
+    }
+    .kpi {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
+    }
+    .kpi-lbl { font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; }
+    .kpi-val { font-size: 24px; font-weight: 800; margin: 6px 0; }
+    .kpi-sub { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; }
+
+    /* Charts Row */
+    .charts-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; margin-bottom: 14px;
+    }
+    .chart-box {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px; height: 280px;
+      display: flex; flex-direction: column;
+    }
+    .chart-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 6px; }
+    .chart-title { font-size: 13px; font-weight: 700; }
+    .canvas-wrap { position: relative; flex: 1; min-height: 0; }
+
+    /* 10 Stations Cards */
+    .section-title { font-size: 13px; font-weight: 700; color: var(--muted); margin: 6px 0 10px; text-transform: uppercase; }
+    .stations-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(245px, 1fr)); gap: 12px;
+    }
+    .st-card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px;
+    }
+    .st-card.real { border-top: 3px solid var(--green); }
+    .st-card.sync { border-top: 3px solid var(--cyan); }
+    .st-card.sim  { border-top: 3px solid var(--amber); }
+    .st-card.alert { border-color: var(--red); box-shadow: 0 0 12px rgba(239,68,68,0.2); }
+
+    .st-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; margin-bottom: 8px; }
+    .st-name { font-size: 13px; font-weight: 700; }
+    .st-tag { font-size: 10px; padding: 2px 6px; border-radius: 6px; font-weight: 700; white-space: nowrap; }
+    .tag-real { background: rgba(16,185,129,0.18); color: var(--green); }
+    .tag-sync { background: rgba(6,182,212,0.18); color: var(--cyan); }
+    .tag-sim  { background: rgba(245,158,11,0.18); color: var(--amber); }
+
+    .st-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
+    .m-cell { background: var(--bg); padding: 6px; border-radius: 6px; text-align: center; }
+    .m-k { font-size: 10px; color: var(--muted); }
+    .m-v { font-size: 12px; font-weight: 700; margin-top: 2px; }
+
+    .relay-row {
+      display: flex; justify-content: space-between; gap: 6px; padding-top: 8px; border-top: 1px solid var(--border);
+    }
+    .r-btn {
+      flex: 1; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border);
+      font-size: 11px; font-weight: 600; cursor: pointer; background: var(--bg); color: var(--muted);
+    }
+    .r-btn.on { background: rgba(16,185,129,0.18); border-color: var(--green); color: var(--green); }
+    .r-btn.off { background: rgba(239,68,68,0.15); border-color: var(--red); color: var(--red); }
+  </style>
 </head>
-<body class="min-h-screen flex flex-col antialiased selection:bg-cyan-500/30 selection:text-cyan-200">
+<body>
 
-    <!-- =====================================================================
-         1. HEADER & THANH ĐIỀU KHIỂN TRUNG TÂM SCADA
-    ====================================================================== -->
-    <header class="sticky top-0 z-30 bg-[#090f1d]/95 backdrop-blur-md border-b border-slate-800/90 px-3 sm:px-6 py-3 shadow-lg">
-        <div class="max-w-[1600px] mx-auto flex flex-col xl:flex-row xl:items-center xl:justify-between gap-3">
-            
-            <!-- Tiêu đề hệ thống & Trạng thái Live -->
-            <div class="flex items-start sm:items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shrink-0 shadow-lg shadow-cyan-500/20">
-                    <!-- Icon đồng hồ đo điện công nghiệp -->
-                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                    </svg>
-                </div>
-                <div>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <h1 class="text-sm sm:text-base lg:text-lg font-extrabold tracking-tight text-white uppercase">
-                            HỆ THỐNG GIÁM SÁT THỜI GIAN THỰC & SO SÁNH 10 TRẠM NĂNG LƯỢNG (PZEM-004T)
-                        </h1>
-                        <!-- Huy hiệu trạng thái Live -->
-                        <span id="liveBadge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                            <span id="liveDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                            <span id="liveText">LIVE • ĐANG GIÁM SÁT</span>
-                        </span>
-                    </div>
-                    <p class="text-xs text-slate-400 mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <span>Kiến trúc Hybrid: <strong class="text-cyan-400">Trạm 1 (Tram_1_Master - Phần cứng thật)</strong> + <strong class="text-slate-300">Trạm 2..10 (Mô phỏng tải)</strong></span>
-                        <span class="hidden sm:inline text-slate-600">|</span>
-                        <span class="font-mono text-[11px] text-slate-400">Cập nhật: <span id="lastUpdateClock" class="text-slate-200">--:--:--</span></span>
-                    </p>
-                </div>
-            </div>
-
-            <!-- Cụm công cụ điều khiển SCADA -->
-            <div class="flex flex-wrap items-center gap-2">
-                
-                <!-- Nút Tạm dừng / Tiếp tục -->
-                <button id="btnToggleRun" onclick="toggleSimulation()" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer">
-                    <svg id="iconPause" class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    <svg id="iconPlay" class="w-4 h-4 text-emerald-400 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    <span id="btnToggleRunText">Tạm dừng</span>
-                </button>
-
-                <!-- Chọn chu kỳ cập nhật (1s / 2s / 5s) -->
-                <div class="inline-flex items-center bg-slate-900 border border-slate-700/80 rounded-lg p-0.5 text-xs">
-                    <span class="px-2 text-slate-400 hidden sm:inline">Chu kỳ:</span>
-                    <button onclick="setSamplingRate(1000)" data-rate="1000" class="rate-btn px-2.5 py-1.5 rounded-md font-mono font-semibold text-slate-400 hover:text-white transition cursor-pointer">1s</button>
-                    <button onclick="setSamplingRate(2000)" data-rate="2000" class="rate-btn px-2.5 py-1.5 rounded-md font-mono font-semibold bg-cyan-600 text-white shadow transition cursor-pointer">2s</button>
-                    <button onclick="setSamplingRate(5000)" data-rate="5000" class="rate-btn px-2.5 py-1.5 rounded-md font-mono font-semibold text-slate-400 hover:text-white transition cursor-pointer">5s</button>
-                </div>
-
-                <!-- Cài đặt Ngưỡng cảnh báo quá tải (W) -->
-                <div class="inline-flex items-center gap-1.5 bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-xs">
-                    <label for="overloadThresholdInput" class="text-slate-400 whitespace-nowrap">Ngưỡng quá tải (W):</label>
-                    <input id="overloadThresholdInput" type="number" value="2500" min="500" max="20000" step="100" onchange="updateThreshold(this.value)" oninput="updateThreshold(this.value)" class="w-20 bg-slate-800 border border-slate-600 rounded px-2 py-0.5 font-mono font-bold text-amber-400 focus:outline-none focus:border-cyan-500 text-right">
-                </div>
-
-                <!-- Nút Xuất báo cáo CSV -->
-                <button onclick="exportCSV()" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 transition cursor-pointer">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                    </svg>
-                    <span>Xuất báo cáo CSV</span>
-                </button>
-
-                <!-- Nút Mở cấu hình Kết nối dữ liệu thật E-Ra -->
-                <button onclick="openEraModal()" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-cyan-600 hover:bg-cyan-500 text-white shadow-md shadow-cyan-600/20 transition cursor-pointer">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
-                    </svg>
-                    <span>Kết nối dữ liệu thật E-Ra (Trạm 1)</span>
-                </button>
-            </div>
+  <div class="top-bar">
+    <div class="header-row">
+      <div class="brand">
+        <div class="brand-icon">⚡</div>
+        <div>
+          <h1>HỆ THỐNG GIÁM SÁT THỜI GIAN THỰC & SO SÁNH 10 TRẠM NĂNG LƯỢNG (PZEM-004T)</h1>
+          <p>Kiến trúc Hybrid: <strong>Trạm 1 (Phần cứng thật)</strong> + <strong>Trạm 2..10 (Đồng bộ / Mô phỏng)</strong> &bull; Cập nhật: <span id="clockTxt">--:--:--</span></p>
         </div>
-    </header>
-
-    <!-- =====================================================================
-         MAIN CONTENT CONTAINER
-    ====================================================================== -->
-    <main class="flex-1 max-w-[1600px] w-full mx-auto px-3 sm:px-6 py-4 space-y-5">
-
-        <!-- =================================================================
-             2. HÀNG THẺ KPI TỔNG QUAN (4 THẺ)
-        ================================================================== -->
-        <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
-            
-            <!-- KPI 1: Tổng Công Suất 10 Trạm (kW) & Tỷ trọng Trạm 1 -->
-            <div class="bg-[#111a2e] border border-slate-800 rounded-xl p-4 shadow-md relative overflow-hidden">
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Tổng Công Suất 10 Trạm</span>
-                    <span class="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                        </svg>
-                    </span>
-                </div>
-                <div class="mt-2 flex items-baseline gap-2">
-                    <span id="kpiTotalPowerKw" class="text-2xl sm:text-3xl font-extrabold font-mono text-white tabular-nums">0.00</span>
-                    <span class="text-sm font-bold text-cyan-400">kW</span>
-                    <span id="kpiTotalPowerW" class="text-xs font-mono text-slate-400 ml-auto tabular-nums">(0 W)</span>
-                </div>
-                <!-- Thanh tiến trình tỷ trọng của Trạm 1 -->
-                <div class="mt-3">
-                    <div class="flex justify-between text-[11px] mb-1">
-                        <span class="text-slate-400">Tỷ trọng Trạm 1 (Thật):</span>
-                        <span id="kpiStation1ShareText" class="font-mono font-bold text-cyan-300">0.0%</span>
-                    </div>
-                    <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                        <div id="kpiStation1ShareBar" class="h-full bg-gradient-to-r from-cyan-400 to-emerald-400 rounded-full transition-all duration-500" style="width: 10%"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- KPI 2: Tổng Điện Năng Tích Lũy (kWh) -->
-            <div class="bg-[#111a2e] border border-slate-800 rounded-xl p-4 shadow-md">
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Tổng Điện Năng Tích Lũy</span>
-                    <span class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                        </svg>
-                    </span>
-                </div>
-                <div class="mt-2 flex items-baseline gap-2">
-                    <span id="kpiTotalEnergy" class="text-2xl sm:text-3xl font-extrabold font-mono text-white tabular-nums">0.00</span>
-                    <span class="text-sm font-bold text-emerald-400">kWh</span>
-                </div>
-                <div class="mt-3 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800/80 pt-2">
-                    <span>Trạm 1 đóng góp: <strong id="kpiStation1Energy" class="font-mono text-emerald-300">0.00 kWh</strong></span>
-                    <span id="kpiActiveRelays" class="font-mono text-slate-300">Relay bật: 0/20</span>
-                </div>
-            </div>
-
-            <!-- KPI 3: Trạm Tiêu Thụ Cao Nhất -->
-            <div class="bg-[#111a2e] border border-slate-800 rounded-xl p-4 shadow-md">
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Trạm Tiêu Thụ Cao Nhất</span>
-                    <span class="p-1.5 rounded-lg bg-amber-500/10 text-amber-400">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
-                        </svg>
-                    </span>
-                </div>
-                <div class="mt-2 flex items-baseline gap-2">
-                    <span id="kpiMaxPower" class="text-2xl sm:text-3xl font-extrabold font-mono text-amber-400 tabular-nums">0</span>
-                    <span class="text-sm font-bold text-amber-300">W</span>
-                    <span id="kpiMaxCurrent" class="text-xs font-mono text-slate-400 ml-auto tabular-nums">0.00 A</span>
-                </div>
-                <div class="mt-3 flex items-center justify-between text-[11px] border-t border-slate-800/80 pt-2">
-                    <span id="kpiMaxStationName" class="font-semibold text-white truncate max-w-[75%]">--</span>
-                    <span id="kpiMaxStationTag" class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[10px]">--</span>
-                </div>
-            </div>
-
-            <!-- KPI 4: Cảnh Báo Quá Tải -->
-            <div id="kpiOverloadCard" class="bg-[#111a2e] border border-slate-800 rounded-xl p-4 shadow-md transition-colors">
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Cảnh Báo Quá Tải</span>
-                    <span id="kpiOverloadIconBox" class="p-1.5 rounded-lg bg-slate-800 text-slate-400">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                        </svg>
-                    </span>
-                </div>
-                <div class="mt-2 flex items-baseline gap-2">
-                    <span id="kpiOverloadCount" class="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-400 tabular-nums">0</span>
-                    <span class="text-sm font-semibold text-slate-300">/ 10 Trạm</span>
-                </div>
-                <div class="mt-3 flex items-center justify-between text-[11px] border-t border-slate-800/80 pt-2">
-                    <span id="kpiOverloadStatusText" class="text-emerald-400 font-medium">Toàn hệ thống vận hành an toàn</span>
-                    <span class="font-mono text-slate-400">&gt; <span id="kpiThresholdMirror">2500</span>W</span>
-                </div>
-            </div>
-        </section>
-
-        <!-- =================================================================
-             3. KHU VỰC BIỂU ĐỒ SO SÁNH THỜI GIAN THỰC (CHART.JS)
-        ================================================================== -->
-        <section class="grid grid-cols-1 lg:grid-cols-12 gap-4">
-            
-            <!-- Biểu đồ Cột So sánh 10 Trạm -->
-            <div class="lg:col-span-7 bg-[#111a2e] border border-slate-800 rounded-xl p-4 shadow-md flex flex-col">
-                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-                    <div>
-                        <h2 class="text-sm font-bold text-white flex items-center gap-2">
-                            <span>Biểu Đồ So Sánh Trực Tiếp 10 Trạm</span>
-                            <span class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
-                                Trạm 1 = Cột Xanh Ngọc
-                            </span>
-                        </h2>
-                        <p class="text-[11px] text-slate-400">Đối chiếu thông số thời gian thực giữa Trạm 1 (Phần cứng thật) và 9 trạm mô phỏng</p>
-                    </div>
-
-                    <!-- Bộ chọn thông số muốn so sánh -->
-                    <div class="flex flex-wrap gap-1 bg-slate-900/90 p-1 rounded-lg border border-slate-800">
-                        <button onclick="setChartMetric('power')" data-metric="power" class="metric-tab px-2.5 py-1 rounded text-[11px] font-semibold bg-cyan-600 text-white transition cursor-pointer">Công suất (W)</button>
-                        <button onclick="setChartMetric('current')" data-metric="current" class="metric-tab px-2.5 py-1 rounded text-[11px] font-semibold text-slate-400 hover:text-white transition cursor-pointer">Dòng điện (A)</button>
-                        <button onclick="setChartMetric('voltage')" data-metric="voltage" class="metric-tab px-2.5 py-1 rounded text-[11px] font-semibold text-slate-400 hover:text-white transition cursor-pointer">Điện áp (V)</button>
-                        <button onclick="setChartMetric('energy')" data-metric="energy" class="metric-tab px-2.5 py-1 rounded text-[11px] font-semibold text-slate-400 hover:text-white transition cursor-pointer">Điện năng (kWh)</button>
-                        <button onclick="setChartMetric('pf')" data-metric="pf" class="metric-tab px-2.5 py-1 rounded text-[11px] font-semibold text-slate-400 hover:text-white transition cursor-pointer">Hệ số PF</button>
-                    </div>
-                </div>
-
-                <div class="relative flex-1 min-h-[260px] sm:min-h-[290px] w-full">
-                    <canvas id="comparisonBarChart"></canvas>
-                </div>
-            </div>
-
-            <!-- Biểu đồ Đường Biến thiên Công suất Thời gian thực (20 điểm gần nhất) -->
-            <div class="lg:col-span-5 bg-[#111a2e] border border-slate-800 rounded-xl p-4 shadow-md flex flex-col">
-                <div class="mb-3">
-                    <h2 class="text-sm font-bold text-white">Biến Thiên Công Suất Thời Gian Thực (W)</h2>
-                    <p class="text-[11px] text-slate-400">20 chu kỳ gần nhất: Trạm 1 (Thật) vs Trạm Cao Nhất vs Trung Bình 10 Trạm</p>
-                </div>
-
-                <div class="relative flex-1 min-h-[260px] sm:min-h-[290px] w-full">
-                    <canvas id="realtimeLineChart"></canvas>
-                </div>
-            </div>
-        </section>
-
-        <!-- =================================================================
-             4. LƯỚI GIÁM SÁT & ĐIỀU KHIỂN CHI TIẾT 10 TRẠM (10 STATION CARDS)
-        ================================================================== -->
-        <section class="space-y-3">
-            <!-- Thanh tiêu đề & bộ lọc lưới trạm -->
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-[#0d1424] border border-slate-800/90 rounded-xl px-4 py-2.5">
-                <div class="flex items-center gap-2">
-                    <span class="w-2.5 h-2.5 rounded-sm bg-cyan-400"></span>
-                    <h2 class="text-sm font-bold text-white uppercase tracking-wide">Bảng Giám Sát & Điều Khiển Chi Tiết 10 Trạm (PZEM-004T + 2 Relay)</h2>
-                </div>
-
-                <div class="flex flex-wrap items-center gap-2 text-xs">
-                    <div class="inline-flex bg-slate-900 border border-slate-800 rounded-lg p-0.5">
-                        <button onclick="setStationFilter('all')" data-filter="all" class="filter-btn px-2.5 py-1 rounded-md font-medium bg-slate-700 text-white transition cursor-pointer">Tất cả (10)</button>
-                        <button onclick="setStationFilter('real')" data-filter="real" class="filter-btn px-2.5 py-1 rounded-md font-medium text-slate-400 hover:text-white transition cursor-pointer">Phần cứng thật (1)</button>
-                        <button onclick="setStationFilter('overload')" data-filter="overload" class="filter-btn px-2.5 py-1 rounded-md font-medium text-slate-400 hover:text-white transition cursor-pointer">Đang quá tải</button>
-                    </div>
-
-                    <select id="sortStationsSelect" onchange="renderStationCards()" class="bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-cyan-500 cursor-pointer">
-                        <option value="id">Sắp xếp: Trạm 1 → 10</option>
-                        <option value="power_desc">Sắp xếp: Công suất cao nhất</option>
-                        <option value="energy_desc">Sắp xếp: Điện năng cao nhất</option>
-                    </select>
-                </div>
-            </div>
-
-            <!-- Grid chứa 10 thẻ Trạm -->
-            <div id="stationsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-3.5">
-                <!-- Các thẻ trạm được render động bằng JavaScript -->
-            </div>
-        </section>
-
-    </main>
-
-    <!-- =====================================================================
-         5. MODAL CẤU HÌNH KẾT NỐI DỮ LIỆU THẬT E-RA (TRẠM 1)
-    ====================================================================== -->
-    <div id="eraConfigModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 backdrop-blur-sm p-3 sm:p-4">
-        <div class="bg-[#111a2e] border border-slate-700 rounded-2xl max-w-2xl w-full max-h-[92vh] overflow-y-auto shadow-2xl">
-            <!-- Modal Header -->
-            <div class="flex items-center justify-between px-5 py-4 border-b border-slate-800">
-                <div class="flex items-center gap-2.5">
-                    <span class="w-8 h-8 rounded-lg bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-bold">E</span>
-                    <div>
-                        <h3 class="text-base font-bold text-white">Kết Nối Dữ Liệu Thật E-Ra IoT (Trạm 1 - Tram_1_Master)</h3>
-                        <p class="text-xs text-slate-400">Đồng bộ phần cứng ESP32 + PZEM-004T qua E-Ra IFrame SDK hoặc HTTP API</p>
-                    </div>
-                </div>
-                <button onclick="closeEraModal()" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
-
-            <!-- Modal Body -->
-            <div class="p-5 space-y-4 text-xs">
-                
-                <!-- Trạng thái liên kết hiện tại -->
-                <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <div>
-                        <span class="text-slate-400 block">Trạng thái nguồn dữ liệu Trạm 1:</span>
-                        <strong id="eraConnectionStatus" class="text-sm text-cyan-400 font-semibold">Chế độ Song Sinh Phần Cứng (Sẵn sàng nhận gói tin E-Ra)</strong>
-                    </div>
-                    <button onclick="simulateEraIncomingPacket()" class="px-3 py-1.5 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 font-semibold transition cursor-pointer shrink-0">
-                        Test nhận gói tin E-Ra ngay
-                    </button>
-                </div>
-
-                <!-- Hướng dẫn nhúng E-Ra IFrame -->
-                <div class="space-y-2">
-                    <h4 class="font-bold text-white text-sm">1. Cách nhúng trực tiếp Dashboard này vào E-Ra IoT</h4>
-                    <div class="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-1.5 text-slate-300 leading-relaxed">
-                        <p>• Bước 1: Mở trang chỉnh sửa Dashboard trên E-Ra (<span class="text-cyan-400">Sửa Bảng Điều Khiển</span>).</p>
-                        <p>• Bước 2: Kéo Widget <strong class="text-white">IFrame</strong> hoặc <strong class="text-white">IFrame With Config</strong> ở cuối cột Widget box thả ra màn hình.</p>
-                        <p>• Bước 3: Dán đường dẫn URL của trang Web này vào ô URL của IFrame và gán 8 Datastreams của <code class="text-amber-300">ESP32_IO</code> theo bảng ánh xạ bên dưới.</p>
-                        <p>• Hệ thống này đã tích hợp sẵn bộ lắng nghe <code class="text-cyan-300">window.addEventListener('message')</code> để tự động bắt dữ liệu thời gian thực từ E-Ra truyền xuống!</p>
-                    </div>
-                </div>
-
-                <!-- Bảng ánh xạ Virtual Pins E-Ra -->
-                <div class="space-y-2">
-                    <div class="flex items-center justify-between">
-                        <h4 class="font-bold text-white text-sm">2. Bảng Ánh Xạ Virtual Pins (Gateway: Tram_1_Master)</h4>
-                        <button onclick="copyPinMapping()" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 font-medium transition cursor-pointer">
-                            Sao chép cấu hình Pin
-                        </button>
-                    </div>
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono text-[11px]">
-                        <div class="p-2 rounded bg-slate-900 border border-slate-800"><span class="text-cyan-400 font-bold">V0:</span> Dien_Ap (V)</div>
-                        <div class="p-2 rounded bg-slate-900 border border-slate-800"><span class="text-amber-400 font-bold">V1:</span> Dong_Dien (A)</div>
-                        <div class="p-2 rounded bg-slate-900 border border-slate-800"><span class="text-rose-400 font-bold">V2:</span> Cong_Suat (W)</div>
-                        <div class="p-2 rounded bg-slate-900 border border-slate-800"><span class="text-emerald-400 font-bold">V3:</span> Dien_Nang (kWh)</div>
-                        <div class="p-2 rounded bg-slate-900 border border-slate-800"><span class="text-purple-400 font-bold">V4:</span> Tan_So (Hz)</div>
-                        <div class="p-2 rounded bg-slate-900 border border-slate-800"><span class="text-blue-400 font-bold">V5:</span> He_So_PF</div>
-                        <div class="p-2 rounded bg-slate-900 border border-slate-800"><span class="text-teal-400 font-bold">V6:</span> Relay_1</div>
-                        <div class="p-2 rounded bg-slate-900 border border-slate-800"><span class="text-teal-400 font-bold">V7:</span> Relay_2</div>
-                    </div>
-                </div>
-
-                <!-- Cấu hình E-Ra API Token tùy chọn -->
-                <div class="space-y-2">
-                    <h4 class="font-bold text-white text-sm">3. Kết nối trực tiếp qua E-Ra HTTP API / Gateway Token (Tùy chọn)</h4>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-slate-400 mb-1">E-Ra Auth Token / Bearer Token</label>
-                            <input id="eraApiTokenInput" type="password" placeholder="Nhập Token từ E-Ra Dev Mode..." class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono focus:outline-none focus:border-cyan-500">
-                        </div>
-                        <div>
-                            <label class="block text-slate-400 mb-1">Endpoint API Dữ liệu Trạm 1</label>
-                            <input id="eraApiUrlInput" type="text" value="https://backend.eoh.io/api/chip_manager/configs" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-300 font-mono focus:outline-none focus:border-cyan-500">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Log gói tin IFrame gần nhất -->
-                <div>
-                    <span class="block text-slate-400 mb-1">Gói tin E-Ra nhận được gần nhất (postMessage / API):</span>
-                    <pre id="eraPacketLog" class="p-2.5 rounded-lg bg-black/60 border border-slate-800 font-mono text-[11px] text-emerald-400 overflow-x-auto">{"status": "waiting_for_era_iframe_or_token", "gateway": "Tram_1_Master", "device": "ESP32_IO"}</pre>
-                </div>
-            </div>
-
-            <!-- Modal Footer -->
-            <div class="px-5 py-3.5 border-t border-slate-800 flex items-center justify-end gap-2 bg-slate-900/50">
-                <button onclick="resetStation1ToLocalTwin()" class="px-3.5 py-2 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer">
-                    Dùng lại mô phỏng tương tác
-                </button>
-                <button onclick="saveEraApiConfig()" class="px-4 py-2 rounded-lg text-xs font-semibold bg-cyan-600 hover:bg-cyan-500 text-white transition cursor-pointer">
-                    Lưu cấu hình kết nối
-                </button>
-            </div>
-        </div>
+      </div>
+      <div class="live-pill" id="liveBadge">● LIVE &bull; ĐANG GIÁM SÁT</div>
     </div>
 
-    <!-- =====================================================================
-         6. TOAST THÔNG BÁO (THAY THẾ HOÀN TOÀN ALERT())
-    ====================================================================== -->
-    <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+    <div class="toolbar">
+      <button class="btn" id="pauseBtn" onclick="togglePause()">⏸ Tạm dừng</button>
 
-    <!-- =====================================================================
-         7. JAVASCRIPT ENGINE: DỮ LIỆU HYBRID, BIỂU ĐỒ CHART.JS & E-RA SDK
-    ====================================================================== -->
-    <script>
-        // =========================================================================
-        // A. KHỞI TẠO CẤU HÌNH DỮ LIỆU 10 TRẠM (TRẠM 1 THẬT + TRẠM 2..10 MÔ PHỎNG)
-        // =========================================================================
-        let isRunning = true;
-        let samplingIntervalMs = 2000;
-        let overloadThresholdW = 2500;
-        let selectedBarMetric = 'power';
-        let currentFilter = 'all';
-        let simulationTimer = null;
+      <div>
+        <span style="color:var(--muted); margin-right:4px;">Chu kỳ:</span>
+        <div class="seg-group">
+          <button class="seg-btn" data-sec="1" onclick="setIntervalSec(1)">1s</button>
+          <button class="seg-btn" data-sec="2" onclick="setIntervalSec(2)">2s</button>
+          <button class="seg-btn" data-sec="5" onclick="setIntervalSec(5)">5s</button>
+        </div>
+      </div>
 
-        // Trạng thái đồng bộ dữ liệu thật từ E-Ra cho Trạm 1
-        let eraLiveState = {
-            connected: false,
-            lastPacketTime: null,
-            apiToken: '',
-            apiUrl: 'https://backend.eoh.io/api/chip_manager/configs'
-        };
+      <div>
+        <span style="color:var(--muted); margin-right:4px;">Ngưỡng quá tải (W):</span>
+        <input type="number" class="thresh-input" id="threshInput" value="2500" step="100" onchange="saveAndRefresh()">
+      </div>
 
-        // Danh sách 10 trạm năng lượng với đặc tính tải thực tế riêng biệt
-        const stations = [
-            {
-                id: 1,
-                code: 'Tram_1_Master',
-                name: 'Tủ Điện Chính (ESP32_IO)',
-                isRealHardware: true,
-                relay1: true,   // V6: Chiếu sáng & Máy tính văn phòng (~460W)
-                relay2: true,   // V7: Điều hòa & Thiết bị phụ tải (~1320W)
-                relay1Label: 'Relay 1 (Tải phụ)',
-                relay2Label: 'Relay 2 (Tải chính)',
-                baseStandbyW: 14,
-                relay1LoadW: 465,
-                relay2LoadW: 1340,
-                basePf: 0.94,
-                voltage: 221.4,
-                current: 8.75,
-                power: 1819,
-                energy: 142.65,
-                frequency: 50.01,
-                pf: 0.94
-            },
-            {
-                id: 2,
-                code: 'Tram_2',
-                name: 'Tầng 1 - Văn Phòng Hành Chính',
-                isRealHardware: false,
-                relay1: true,
-                relay2: true,
-                relay1Label: 'Relay 1 (Đèn LED)',
-                relay2Label: 'Relay 2 (Máy lạnh 1)',
-                baseStandbyW: 25,
-                relay1LoadW: 380,
-                relay2LoadW: 1150,
-                basePf: 0.92,
-                voltage: 220.8,
-                current: 7.65,
-                power: 1555,
-                energy: 218.40,
-                frequency: 50.00,
-                pf: 0.92
-            },
-            {
-                id: 3,
-                code: 'Tram_3',
-                name: 'Tầng 2 - Khu Điều Hòa Trung Tâm',
-                isRealHardware: false,
-                relay1: true,
-                relay2: true,
-                relay1Label: 'Relay 1 (Quạt thông gió)',
-                relay2Label: 'Relay 2 (Cụm Chiller)',
-                baseStandbyW: 30,
-                relay1LoadW: 520,
-                relay2LoadW: 1780,
-                basePf: 0.87,
-                voltage: 219.2,
-                current: 12.21,
-                power: 2330,
-                energy: 486.12,
-                frequency: 49.98,
-                pf: 0.87
-            },
-            {
-                id: 4,
-                code: 'Tram_4',
-                name: 'Phòng Lab & Đo Lường Kỹ Thuật',
-                isRealHardware: false,
-                relay1: true,
-                relay2: false,
-                relay1Label: 'Relay 1 (Bàn thí nghiệm)',
-                relay2Label: 'Relay 2 (Lò sấy mẫu)',
-                baseStandbyW: 40,
-                relay1LoadW: 690,
-                relay2LoadW: 1450,
-                basePf: 0.96,
-                voltage: 221.9,
-                current: 3.43,
-                power: 730,
-                energy: 164.88,
-                frequency: 50.02,
-                pf: 0.96
-            },
-            {
-                id: 5,
-                code: 'Tram_5',
-                name: 'Trạm Bơm Nước & Xử Lý Tuần Hoàn',
-                isRealHardware: false,
-                relay1: true,
-                relay2: true,
-                relay1Label: 'Relay 1 (Bơm tăng áp 1)',
-                relay2Label: 'Relay 2 (Bơm tăng áp 2)',
-                baseStandbyW: 15,
-                relay1LoadW: 880,
-                relay2LoadW: 1120,
-                basePf: 0.86,
-                voltage: 218.7,
-                current: 10.71,
-                power: 2015,
-                energy: 392.05,
-                frequency: 49.97,
-                pf: 0.86
-            },
-            {
-                id: 6,
-                code: 'Tram_6',
-                name: 'Xưởng Gia Công CNC & Cơ Khí',
-                isRealHardware: false,
-                relay1: true,
-                relay2: true,
-                relay1Label: 'Relay 1 (Máy nén khí)',
-                relay2Label: 'Relay 2 (Trục chính CNC)',
-                baseStandbyW: 45,
-                relay1LoadW: 940,
-                relay2LoadW: 1690, // Tổng ~2675W -> Dễ chạm ngưỡng quá tải để minh họa cảnh báo & sa thải tải!
-                basePf: 0.88,
-                voltage: 218.1,
-                current: 13.94,
-                power: 2675,
-                energy: 615.74,
-                frequency: 49.96,
-                pf: 0.88
-            },
-            {
-                id: 7,
-                code: 'Tram_7',
-                name: 'Kho Lạnh & Bảo Quản Vật Tư',
-                isRealHardware: false,
-                relay1: true,
-                relay2: true,
-                relay1Label: 'Relay 1 (Quạt dàn lạnh)',
-                relay2Label: 'Relay 2 (Máy nén lạnh)',
-                baseStandbyW: 20,
-                relay1LoadW: 410,
-                relay2LoadW: 1490,
-                basePf: 0.89,
-                voltage: 220.1,
-                current: 9.80,
-                power: 1920,
-                energy: 529.30,
-                frequency: 50.00,
-                pf: 0.89
-            },
-            {
-                id: 8,
-                code: 'Tram_8',
-                name: 'Chiếu Sáng Hành Lang & An Ninh',
-                isRealHardware: false,
-                relay1: true,
-                relay2: false,
-                relay1Label: 'Relay 1 (Đèn hành lang)',
-                relay2Label: 'Relay 2 (Đèn pha sân bãi)',
-                baseStandbyW: 12,
-                relay1LoadW: 340,
-                relay2LoadW: 780,
-                basePf: 0.98,
-                voltage: 222.5,
-                current: 1.61,
-                power: 352,
-                energy: 98.15,
-                frequency: 50.01,
-                pf: 0.98
-            },
-            {
-                id: 9,
-                code: 'Tram_9',
-                name: 'Trạm Sạc Xe Điện Nội Bộ',
-                isRealHardware: false,
-                relay1: true,
-                relay2: true,
-                relay1Label: 'Relay 1 (Trụ sạc 1)',
-                relay2Label: 'Relay 2 (Trụ sạc 2)',
-                baseStandbyW: 18,
-                relay1LoadW: 1050,
-                relay2LoadW: 1280,
-                basePf: 0.97,
-                voltage: 219.5,
-                current: 11.03,
-                power: 2348,
-                energy: 447.92,
-                frequency: 49.99,
-                pf: 0.97
-            },
-            {
-                id: 10,
-                code: 'Tram_10',
-                name: 'Phòng Server & Hạ Tầng Mạng',
-                isRealHardware: false,
-                relay1: true,
-                relay2: true,
-                relay1Label: 'Relay 1 (Tủ Rack Chính)',
-                relay2Label: 'Relay 2 (Điều hòa chính xác)',
-                baseStandbyW: 60,
-                relay1LoadW: 820,
-                relay2LoadW: 960,
-                basePf: 0.96,
-                voltage: 221.2,
-                current: 8.66,
-                power: 1840,
-                energy: 710.50,
-                frequency: 50.00,
-                pf: 0.96
+      <button class="btn csv" onclick="exportCSV()">⬇ Xuất báo cáo CSV</button>
+      <span class="btn era-connected" id="eraBadge">🔗 Chờ dữ liệu thật E-Ra (Trạm 1)</span>
+
+      <!-- Nút gạt chuyển chế độ 9 trạm -->
+      <div class="mode-switch-wrap">
+        <span id="lblSync" style="font-weight:700; color:var(--cyan);">9 Trạm lấy từ Trạm 1</span>
+        <label class="switch">
+          <input type="checkbox" id="simModeToggle" onchange="toggleSimMode()">
+          <span class="slider"></span>
+        </label>
+        <span id="lblSim" style="font-weight:700; color:var(--muted);">9 Trạm mô phỏng</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 KPI Cards -->
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi-lbl">Tổng công suất 10 trạm</div>
+      <div class="kpi-val" id="kpiTotalP">0.00 kW</div>
+      <div class="kpi-sub"><span>Tỷ trọng Trạm 1 (Thật):</span><span id="kpiShare" style="color:var(--cyan); font-weight:700;">0%</span></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">Tổng điện năng tích lũy</div>
+      <div class="kpi-val" id="kpiTotalE">0.00 kWh</div>
+      <div class="kpi-sub"><span id="kpiSt1E">Trạm 1: 0.00 kWh</span><span id="kpiRelayCount">Relay bật: 20/20</span></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">Trạm tiêu thụ cao nhất</div>
+      <div class="kpi-val" id="kpiMaxP" style="color:var(--amber);">0 W</div>
+      <div class="kpi-sub"><span id="kpiMaxName">--</span><span id="kpiMaxI">0.00 A</span></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-lbl">Cảnh báo quá tải</div>
+      <div class="kpi-val" id="kpiOverload" style="color:var(--green);">0 / 10 Trạm</div>
+      <div class="kpi-sub"><span id="kpiOverloadList">Hệ thống an toàn</span><span id="kpiThreshLbl">&gt; 2500W</span></div>
+    </div>
+  </div>
+
+  <!-- 2 Charts -->
+  <div class="charts-grid">
+    <div class="chart-box">
+      <div class="chart-head">
+        <span class="chart-title">Biểu Đồ So Sánh Trực Tiếp 10 Trạm</span>
+        <div class="seg-group" id="metricBtns">
+          <button class="seg-btn active" data-m="p" onclick="setMetric('p')">Công suất (W)</button>
+          <button class="seg-btn" data-m="i" onclick="setMetric('i')">Dòng điện (A)</button>
+          <button class="seg-btn" data-m="u" onclick="setMetric('u')">Điện áp (V)</button>
+          <button class="seg-btn" data-m="e" onclick="setMetric('e')">Điện năng (kWh)</button>
+        </div>
+      </div>
+      <div class="canvas-wrap"><canvas id="barChart"></canvas></div>
+    </div>
+
+    <div class="chart-box">
+      <div class="chart-head">
+        <span class="chart-title">Biến Thiên Công Suất Thời Gian Thực (W)</span>
+        <span style="font-size:11px; color:var(--muted);">20 chu kỳ gần nhất</span>
+      </div>
+      <div class="canvas-wrap"><canvas id="lineChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="section-title">Chi tiết giám sát & điều khiển phụ tải 10 khu vực (Tòa nhà 2 tầng)</div>
+  <div class="stations-grid" id="stationsGrid"></div>
+
+  <script>
+    const STORAGE_KEY = 'scada_pzem_10_state_v2';
+
+    const stationMeta = [
+      { name: "Trạm 1 • Tủ Tổng Tầng 1", baseP: 850, baseE: 142.6 },
+      { name: "Trạm 2 • Phòng Khách Tầng 1", baseP: 420, baseE: 215.4 },
+      { name: "Trạm 3 • Khu Bếp Tầng 1", baseP: 1650, baseE: 480.2 },
+      { name: "Trạm 4 • Chiếu Sáng Tầng 1", baseP: 210, baseE: 98.5 },
+      { name: "Trạm 5 • Sân & Cổng Tầng 1", baseP: 150, baseE: 76.0 },
+      { name: "Trạm 6 • Phòng Ngủ 1 Tầng 2", baseP: 1280, baseE: 510.8 },
+      { name: "Trạm 7 • Phòng Ngủ 2 Tầng 2", baseP: 1120, baseE: 465.3 },
+      { name: "Trạm 8 • Điều Hòa Tầng 2", baseP: 1950, baseE: 790.1 },
+      { name: "Trạm 9 • Bình Nóng Lạnh T2", baseP: 2250, baseE: 640.9 },
+      { name: "Trạm 10 • Phòng Làm Việc T2", baseP: 540, baseE: 245.7 }
+    ];
+
+    // Khôi phục trạng thái đã lưu trong localStorage (không bị mất khi tải lại trang)
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    let state = {
+      isPaused: saved.isPaused ?? false,
+      isSimMode: saved.isSimMode ?? false, // false = 9 trạm lấy từ Trạm 1; true = 9 trạm mô phỏng
+      intervalSec: saved.intervalSec ?? 2,
+      threshold: saved.threshold ?? 2500,
+      metric: saved.metric ?? 'p',
+      relays: saved.relays ?? Array.from({ length: 10 }, () => ({ r1: true, r2: true }))
+    };
+
+    // Dữ liệu thực tế Trạm 1 (mặc định giả lập nhẹ khi chưa cắm ESP32, tự ghi đè khi E-Ra gửi data thật)
+    let eraConnected = false;
+    let realStation1 = { u: 221.4, i: 3.92, p: 845.0, e: 142.67, f: 50.0, pf: 0.96 };
+    let stations = stationMeta.map((m, idx) => ({
+      id: idx + 1, name: m.name, u: 221.4, i: 3.92, p: m.baseP, e: m.baseE, f: 50.0, pf: 0.96
+    }));
+
+    let historyLabels = [];
+    let histSt1 = [], histMax = [], histAvg = [];
+    let timerId = null;
+
+    function persistState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    // Kết nối E-Ra IFrame With Config (nhận 6 Datastream V0..V5 của Trạm 1)
+    let eraConfigs = [];
+    try {
+      if (typeof EraWidget !== 'undefined') {
+        const eraWidget = new EraWidget();
+        eraWidget.init({
+          onConfiguration: (cfg) => {
+            eraConfigs = cfg.realtime_configs || [];
+            document.getElementById('eraBadge').innerText = '✅ Đã liên kết E-Ra (Trạm 1)';
+          },
+          onValues: (values) => {
+            const list = eraConfigs.length > 0
+              ? eraConfigs.map(c => values[c.id])
+              : Object.values(values);
+            if (list.length > 0 && list[0] && list[0].value !== undefined) {
+              eraConnected = true;
+              document.getElementById('eraBadge').innerText = '🟢 Dữ liệu thật E-Ra (Trạm 1)';
+              if (list[0]?.value != null) realStation1.u  = parseFloat(list[0].value) || 0;
+              if (list[1]?.value != null) realStation1.i  = parseFloat(list[1].value) || 0;
+              if (list[2]?.value != null) realStation1.p  = parseFloat(list[2].value) || 0;
+              if (list[3]?.value != null) realStation1.e  = parseFloat(list[3].value) || 0;
+              if (list[4]?.value != null) realStation1.f  = parseFloat(list[4].value) || 50;
+              if (list[5]?.value != null) realStation1.pf = parseFloat(list[5].value) || 0.95;
+              tickData(true);
             }
-        ];
-
-        // Lịch sử 20 điểm thời gian thực cho Biểu đồ Đường (Line Chart)
-        const MAX_HISTORY_POINTS = 20;
-        const historyLabels = [];
-        const historyStation1Power = [];
-        const historyMaxStationPower = [];
-        const historyAvgStationPower = [];
-
-        // =========================================================================
-        // B. KHỞI TẠO BIỂU ĐỒ CHART.JS (BAR CHART & REAL-TIME LINE CHART)
-        // =========================================================================
-        let barChart = null;
-        let lineChart = null;
-
-        // Plugin tùy chỉnh vẽ đường kẻ ngang Ngưỡng Quá Tải trên Biểu đồ Cột
-        const thresholdLinePlugin = {
-            id: 'thresholdLinePlugin',
-            afterDatasetsDraw(chart) {
-                if (selectedBarMetric !== 'power') return;
-                const { ctx, chartArea: { left, right, top, bottom }, scales: { y } } = chart;
-                const yPos = y.getPixelForValue(overloadThresholdW);
-                if (yPos < top || yPos > bottom) return;
-
-                ctx.save();
-                ctx.beginPath();
-                ctx.setLineDash([6, 4]);
-                ctx.lineWidth = 1.8;
-                ctx.strokeStyle = '#ef4444';
-                ctx.moveTo(left, yPos);
-                ctx.lineTo(right, yPos);
-                ctx.stroke();
-
-                // Nhãn ngưỡng quá tải
-                ctx.fillStyle = 'rgba(239, 68, 68, 0.92)';
-                ctx.font = '600 10px "JetBrains Mono", monospace';
-                ctx.textAlign = 'right';
-                ctx.fillText(`Ngưỡng quá tải: ${overloadThresholdW} W`, right - 6, yPos - 5);
-                ctx.restore();
-            }
-        };
-
-        function initCharts() {
-            Chart.defaults.color = '#94a3b8';
-            Chart.defaults.font.family = '"Inter", sans-serif';
-
-            // 1. Biểu đồ Cột So sánh 10 Trạm
-            const barCtx = document.getElementById('comparisonBarChart').getContext('2d');
-            barChart = new Chart(barCtx, {
-                type: 'bar',
-                data: {
-                    labels: stations.map(s => s.id === 1 ? 'Trạm 1 (Thật)' : `Trạm ${s.id}`),
-                    datasets: [{
-                        label: 'Công suất (W)',
-                        data: stations.map(s => s.power),
-                        backgroundColor: stations.map(s => getBarColor(s)),
-                        borderColor: stations.map(s => s.id === 1 ? '#22d3ee' : 'rgba(148, 163, 184, 0.25)'),
-                        borderWidth: stations.map(s => s.id === 1 ? 2 : 1),
-                        borderRadius: 6,
-                        maxBarThickness: 42
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    animation: { duration: 350 },
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: '#0f172a',
-                            titleColor: '#f8fafc',
-                            bodyColor: '#cbd5e1',
-                            borderColor: '#334155',
-                            borderWidth: 1,
-                            padding: 10,
-                            callbacks: {
-                                title: (items) => {
-                                    const idx = items[0].dataIndex;
-                                    const st = stations[idx];
-                                    return `${st.code} - ${st.name} ${st.isRealHardware ? '[PHẦN CỨNG THẬT]' : '[MÔ PHỎNG]'}`;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            grid: { display: false },
-                            ticks: {
-                                font: { size: 11, weight: '600' },
-                                color: (ctx) => ctx.index === 0 ? '#22d3ee' : '#94a3b8'
-                            }
-                        },
-                        y: {
-                            beginAtZero: true,
-                            grid: { color: 'rgba(30, 41, 59, 0.7)' },
-                            ticks: {
-                                font: { family: '"JetBrains Mono", monospace', size: 11 }
-                            }
-                        }
-                    }
-                },
-                plugins: [thresholdLinePlugin]
-            });
-
-            // 2. Biểu đồ Đường Biến thiên Công suất Thời gian thực
-            const lineCtx = document.getElementById('realtimeLineChart').getContext('2d');
-            lineChart = new Chart(lineCtx, {
-                type: 'line',
-                data: {
-                    labels: historyLabels,
-                    datasets: [
-                        {
-                            label: 'Trạm 1 (Phần cứng thật)',
-                            data: historyStation1Power,
-                            borderColor: '#06b6d4',
-                            backgroundColor: 'rgba(6, 182, 212, 0.14)',
-                            borderWidth: 2.5,
-                            pointRadius: 2.5,
-                            pointBackgroundColor: '#22d3ee',
-                            fill: true,
-                            tension: 0.35
-                        },
-                        {
-                            label: 'Trạm cao nhất (Max)',
-                            data: historyMaxStationPower,
-                            borderColor: '#f59e0b',
-                            backgroundColor: 'transparent',
-                            borderWidth: 2,
-                            borderDash: [5, 4],
-                            pointRadius: 2,
-                            tension: 0.35
-                        },
-                        {
-                            label: 'Trung bình 10 trạm',
-                            data: historyAvgStationPower,
-                            borderColor: '#818cf8',
-                            backgroundColor: 'transparent',
-                            borderWidth: 2,
-                            pointRadius: 0,
-                            tension: 0.35
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    animation: { duration: 250 },
-                    interaction: {
-                        mode: 'index',
-                        intersect: false
-                    },
-                    plugins: {
-                        legend: {
-                            position: 'top',
-                            labels: {
-                                usePointStyle: true,
-                                boxWidth: 8,
-                                font: { size: 11, weight: '500' }
-                            }
-                        },
-                        tooltip: {
-                            backgroundColor: '#0f172a',
-                            borderColor: '#334155',
-                            borderWidth: 1,
-                            padding: 10
-                        }
-                    },
-                    scales: {
-                        x: {
-                            grid: { display: false },
-                            ticks: {
-                                maxTicksLimit: 6,
-                                font: { family: '"JetBrains Mono", monospace', size: 10 }
-                            }
-                        },
-                        y: {
-                            beginAtZero: true,
-                            grid: { color: 'rgba(30, 41, 59, 0.7)' },
-                            ticks: {
-                                font: { family: '"JetBrains Mono", monospace', size: 10 }
-                            }
-                        }
-                    }
-                }
-            });
-        }
-
-        function getBarColor(station) {
-            if (selectedBarMetric === 'power' && station.power > overloadThresholdW) {
-                return 'rgba(239, 68, 68, 0.85)'; // Đỏ cảnh báo quá tải
-            }
-            if (station.id === 1) {
-                return 'rgba(6, 182, 212, 0.9)'; // Xanh ngọc nổi bật cho Trạm 1 (Phần cứng thật)
-            }
-            return 'rgba(59, 130, 246, 0.45)'; // Xanh dương dịu cho 9 trạm mô phỏng
-        }
-
-        // =========================================================================
-        // C. ENGINE MÔ PHỎNG & ĐỒNG BỘ DỮ LIỆU THỜI GIAN THỰC
-        // =========================================================================
-        function stepTelemetryTick() {
-            const now = new Date();
-            const timeStr = now.toTimeString().split(' ')[0];
-            document.getElementById('lastUpdateClock').textContent = timeStr;
-
-            const deltaHours = samplingIntervalMs / 3600000;
-
-            stations.forEach((st) => {
-                // Nếu Trạm 1 đang đồng bộ trực tiếp từ gói tin E-Ra live trong vòng 10 giây qua thì giữ nguyên số đo thật
-                if (st.id === 1 && eraLiveState.connected && eraLiveState.lastPacketTime && (Date.now() - eraLiveState.lastPacketTime < 10000)) {
-                    return;
-                }
-
-                // 1. Điện áp lưới dao động thực tế quanh 220V (217.5V - 223.8V)
-                const vNoise = (Math.random() - 0.5) * 1.4;
-                st.voltage = Number(Math.min(224.2, Math.max(217.0, st.voltage + vNoise)).toFixed(1));
-
-                // 2. Tần số lưới ổn định quanh 50.00Hz
-                st.frequency = Number((50.0 + (Math.random() - 0.5) * 0.06).toFixed(2));
-
-                // 3. Tính toán Công suất thực (W) dựa trên trạng thái Relay 1 & Relay 2
-                let targetPower = st.baseStandbyW;
-                if (st.relay1) targetPower += st.relay1LoadW * (0.96 + Math.random() * 0.08);
-                if (st.relay2) targetPower += st.relay2LoadW * (0.95 + Math.random() * 0.10);
-                st.power = Math.round(targetPower);
-
-                // 4. Tính Hệ số công suất PF (0.85 - 0.99)
-                if (!st.relay1 && !st.relay2) {
-                    st.pf = 0.85;
-                } else {
-                    const pfJitter = (Math.random() - 0.5) * 0.02;
-                    st.pf = Number(Math.min(0.99, Math.max(0.84, st.basePf + pfJitter)).toFixed(2));
-                }
-
-                // 5. Tính Dòng điện I = P / (U * PF)
-                st.current = Number((st.power / (st.voltage * st.pf)).toFixed(2));
-
-                // 6. Tích lũy Điện năng (kWh)
-                st.energy = Number((st.energy + (st.power / 1000) * deltaHours).toFixed(3));
-            });
-
-            // Cập nhật lịch sử biểu đồ đường (20 điểm gần nhất)
-            const totalPowerW = stations.reduce((sum, s) => sum + s.power, 0);
-            const avgPowerW = Math.round(totalPowerW / stations.length);
-            const maxPowerW = Math.max(...stations.map(s => s.power));
-            const station1PowerW = stations[0].power;
-
-            historyLabels.push(timeStr);
-            historyStation1Power.push(station1PowerW);
-            historyMaxStationPower.push(maxPowerW);
-            historyAvgStationPower.push(avgPowerW);
-
-            if (historyLabels.length > MAX_HISTORY_POINTS) {
-                historyLabels.shift();
-                historyStation1Power.shift();
-                historyMaxStationPower.shift();
-                historyAvgStationPower.shift();
-            }
-
-            updateDashboardUI();
-        }
-
-        // =========================================================================
-        // D. CẬP NHẬT TOÀN BỘ GIAO DIỆN (KPIs, BIỂU ĐỒ, 10 THẺ TRẠM)
-        // =========================================================================
-        function updateDashboardUI() {
-            // 1. Tính toán các chỉ số KPI tổng quan
-            const totalPowerW = stations.reduce((acc, s) => acc + s.power, 0);
-            const totalPowerKw = (totalPowerW / 1000).toFixed(2);
-            const station1Share = totalPowerW > 0 ? ((stations[0].power / totalPowerW) * 100).toFixed(1) : '0.0';
-
-            const totalEnergyKwh = stations.reduce((acc, s) => acc + s.energy, 0).toFixed(2);
-            const activeRelaysCount = stations.reduce((acc, s) => acc + (s.relay1 ? 1 : 0) + (s.relay2 ? 1 : 0), 0);
-
-            const maxStation = stations.reduce((max, s) => (s.power > max.power ? s : max), stations[0]);
-            const overloadedStations = stations.filter(s => s.power > overloadThresholdW);
-
-            // Render KPI 1
-            document.getElementById('kpiTotalPowerKw').textContent = totalPowerKw;
-            document.getElementById('kpiTotalPowerW').textContent = `(${totalPowerW.toLocaleString('vi-VN')} W)`;
-            document.getElementById('kpiStation1ShareText').textContent = `${station1Share}% (${stations[0].power} W)`;
-            document.getElementById('kpiStation1ShareBar').style.width = `${Math.min(100, parseFloat(station1Share))}%`;
-
-            // Render KPI 2
-            document.getElementById('kpiTotalEnergy').textContent = totalEnergyKwh;
-            document.getElementById('kpiStation1Energy').textContent = `${stations[0].energy.toFixed(2)} kWh`;
-            document.getElementById('kpiActiveRelays').textContent = `Relay bật: ${activeRelaysCount}/20`;
-
-            // Render KPI 3
-            document.getElementById('kpiMaxPower').textContent = maxStation.power.toLocaleString('vi-VN');
-            document.getElementById('kpiMaxCurrent').textContent = `${maxStation.current.toFixed(2)} A`;
-            document.getElementById('kpiMaxStationName').textContent = `Trạm ${maxStation.id} • ${maxStation.name}`;
-            document.getElementById('kpiMaxStationTag').textContent = maxStation.isRealHardware ? 'THẬT' : 'MÔ PHỎNG';
-
-            // Render KPI 4 (Cảnh báo quá tải)
-            const overloadCountEl = document.getElementById('kpiOverloadCount');
-            const overloadCardEl = document.getElementById('kpiOverloadCard');
-            const overloadStatusTextEl = document.getElementById('kpiOverloadStatusText');
-            const overloadIconBoxEl = document.getElementById('kpiOverloadIconBox');
-            document.getElementById('kpiThresholdMirror').textContent = overloadThresholdW;
-
-            overloadCountEl.textContent = overloadedStations.length;
-            if (overloadedStations.length > 0) {
-                overloadCountEl.className = 'text-2xl sm:text-3xl font-extrabold font-mono text-rose-400 tabular-nums';
-                overloadCardEl.classList.add('border-rose-500/70', 'bg-rose-950/20');
-                overloadIconBoxEl.className = 'p-1.5 rounded-lg bg-rose-500/20 text-rose-400 animate-pulse';
-                overloadStatusTextEl.className = 'text-rose-400 font-semibold truncate';
-                overloadStatusTextEl.textContent = `Quá tải: ${overloadedStations.map(s => 'Trạm ' + s.id).join(', ')}`;
-            } else {
-                overloadCountEl.className = 'text-2xl sm:text-3xl font-extrabold font-mono text-emerald-400 tabular-nums';
-                overloadCardEl.classList.remove('border-rose-500/70', 'bg-rose-950/20');
-                overloadIconBoxEl.className = 'p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400';
-                overloadStatusTextEl.className = 'text-emerald-400 font-medium';
-                overloadStatusTextEl.textContent = 'Toàn hệ thống vận hành an toàn';
-            }
-
-            // 2. Cập nhật Biểu đồ Cột So sánh 10 Trạm
-            if (barChart) {
-                const metricConfig = {
-                    power: { label: 'Công suất (W)', key: 'power' },
-                    current: { label: 'Dòng điện (A)', key: 'current' },
-                    voltage: { label: 'Điện áp (V)', key: 'voltage' },
-                    energy: { label: 'Điện năng (kWh)', key: 'energy' },
-                    pf: { label: 'Hệ số công suất (PF)', key: 'pf' }
-                }[selectedBarMetric];
-
-                barChart.data.datasets[0].label = metricConfig.label;
-                barChart.data.datasets[0].data = stations.map(s => s[metricConfig.key]);
-                barChart.data.datasets[0].backgroundColor = stations.map(s => getBarColor(s));
-                barChart.options.scales.y.beginAtZero = (selectedBarMetric !== 'voltage' && selectedBarMetric !== 'pf');
-                barChart.update();
-            }
-
-            // 3. Cập nhật Biểu đồ Đường Thời gian thực
-            if (lineChart) {
-                lineChart.update();
-            }
-
-            // 4. Render lại 10 Thẻ Trạm
-            renderStationCards();
-        }
-
-        function renderStationCards() {
-            const grid = document.getElementById('stationsGrid');
-            const sortBy = document.getElementById('sortStationsSelect').value;
-
-            let filtered = [...stations];
-            if (currentFilter === 'real') {
-                filtered = filtered.filter(s => s.isRealHardware);
-            } else if (currentFilter === 'overload') {
-                filtered = filtered.filter(s => s.power > overloadThresholdW);
-            }
-
-            if (sortBy === 'power_desc') {
-                filtered.sort((a, b) => b.power - a.power);
-            } else if (sortBy === 'energy_desc') {
-                filtered.sort((a, b) => b.energy - a.energy);
-            } else {
-                filtered.sort((a, b) => a.id - b.id);
-            }
-
-            if (filtered.length === 0) {
-                grid.innerHTML = `
-                    <div class="col-span-full bg-[#111a2e] border border-slate-800 rounded-xl p-8 text-center text-slate-400 text-sm">
-                        Không có trạm nào thuộc bộ lọc hiện tại.
-                    </div>
-                `;
-                return;
-            }
-
-            grid.innerHTML = filtered.map(st => {
-                const isOverload = st.power > overloadThresholdW;
-                const cardBorderClass = isOverload
-                    ? 'border-2 border-rose-500 card-overload'
-                    : (st.isRealHardware
-                        ? 'border border-cyan-500/60 bg-gradient-to-b from-cyan-950/25 to-[#111a2e] shadow-lg shadow-cyan-950/20'
-                        : 'border border-slate-800 bg-[#111a2e] hover:border-slate-700');
-
-                const sourceBadge = st.isRealHardware
-                    ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                         <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
-                         PHẦN CỨNG THẬT (ESP32 + PZEM-004T)
-                       </span>`
-                    : `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700">
-                         MÔ PHỎNG
-                       </span>`;
-
-                const overloadBadge = isOverload
-                    ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-500/25 text-rose-300 border border-rose-500/50 animate-pulse">
-                         ⚠ QUÁ TẢI
-                       </span>`
-                    : '';
-
-                return `
-                <div class="rounded-xl p-3.5 transition-all flex flex-col justify-between ${cardBorderClass}">
-                    <!-- Header Thẻ Trạm -->
-                    <div>
-                        <div class="flex flex-wrap items-center justify-between gap-1.5 mb-2">
-                            ${sourceBadge}
-                            ${overloadBadge}
-                        </div>
-
-                        <div class="flex items-baseline justify-between gap-2 mb-3">
-                            <h3 class="text-sm font-bold text-white truncate" title="${st.name}">
-                                <span class="text-cyan-400 font-mono">TRẠM ${st.id}</span> • ${st.name}
-                            </h3>
-                        </div>
-
-                        <!-- 6 Thông số PZEM-004T (Khớp màu chuẩn Dashboard E-Ra) -->
-                        <div class="grid grid-cols-3 gap-1.5 mb-3">
-                            <!-- Điện áp (V) -->
-                            <div class="bg-slate-900/90 border border-slate-800/90 rounded-lg p-2 border-t-2 border-t-cyan-400">
-                                <div class="text-[10px] text-slate-400">Điện áp</div>
-                                <div class="font-mono font-bold text-xs sm:text-sm text-white tabular-nums mt-0.5">
-                                    ${st.voltage.toFixed(1)} <span class="text-[10px] text-cyan-400 font-normal">V</span>
-                                </div>
-                            </div>
-
-                            <!-- Dòng điện (A) -->
-                            <div class="bg-slate-900/90 border border-slate-800/90 rounded-lg p-2 border-t-2 border-t-amber-400">
-                                <div class="text-[10px] text-slate-400">Dòng điện</div>
-                                <div class="font-mono font-bold text-xs sm:text-sm text-white tabular-nums mt-0.5">
-                                    ${st.current.toFixed(2)} <span class="text-[10px] text-amber-400 font-normal">A</span>
-                                </div>
-                            </div>
-
-                            <!-- Công suất (W) -->
-                            <div class="bg-slate-900/90 border border-slate-800/90 rounded-lg p-2 border-t-2 border-t-rose-500">
-                                <div class="text-[10px] text-slate-400">Công suất</div>
-                                <div class="font-mono font-bold text-xs sm:text-sm ${isOverload ? 'text-rose-400' : 'text-white'} tabular-nums mt-0.5">
-                                    ${st.power.toLocaleString('vi-VN')} <span class="text-[10px] text-rose-400 font-normal">W</span>
-                                </div>
-                            </div>
-
-                            <!-- Điện năng (kWh) -->
-                            <div class="bg-slate-900/90 border border-slate-800/90 rounded-lg p-2 border-t-2 border-t-emerald-400">
-                                <div class="text-[10px] text-slate-400">Điện năng</div>
-                                <div class="font-mono font-bold text-xs sm:text-sm text-white tabular-nums mt-0.5">
-                                    ${st.energy.toFixed(2)} <span class="text-[10px] text-emerald-400 font-normal">kWh</span>
-                                </div>
-                            </div>
-
-                            <!-- Tần số (Hz) -->
-                            <div class="bg-slate-900/90 border border-slate-800/90 rounded-lg p-2 border-t-2 border-t-purple-400">
-                                <div class="text-[10px] text-slate-400">Tần số</div>
-                                <div class="font-mono font-bold text-xs sm:text-sm text-white tabular-nums mt-0.5">
-                                    ${st.frequency.toFixed(1)} <span class="text-[10px] text-purple-400 font-normal">Hz</span>
-                                </div>
-                            </div>
-
-                            <!-- Hệ số PF -->
-                            <div class="bg-slate-900/90 border border-slate-800/90 rounded-lg p-2 border-t-2 border-t-slate-400">
-                                <div class="text-[10px] text-slate-400">Hệ số PF</div>
-                                <div class="font-mono font-bold text-xs sm:text-sm text-white tabular-nums mt-0.5">
-                                    ${st.pf.toFixed(2)} <span class="text-[10px] text-slate-400 font-normal">PF</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Điều khiển 2 Relay & Nút Sa thải tải khẩn cấp -->
-                    <div class="pt-2.5 border-t border-slate-800/90 space-y-2">
-                        <div class="grid grid-cols-2 gap-2">
-                            <!-- Công tắc Relay 1 -->
-                            <button onclick="toggleRelay(${st.id}, 1)" class="flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-left transition cursor-pointer ${st.relay1 ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200' : 'bg-slate-900 border-slate-800 text-slate-400'}">
-                                <div class="min-w-0 pr-1">
-                                    <div class="text-[11px] font-bold truncate">Relay 1</div>
-                                    <div class="text-[9px] opacity-75 truncate">${st.relay1 ? 'ON' : 'OFF'}</div>
-                                </div>
-                                <span class="w-8 h-4 rounded-full p-0.5 transition-colors shrink-0 flex items-center ${st.relay1 ? 'bg-emerald-500 justify-end' : 'bg-slate-700 justify-start'}">
-                                    <span class="w-3 h-3 rounded-full bg-white shadow"></span>
-                                </span>
-                            </button>
-
-                            <!-- Công tắc Relay 2 -->
-                            <button onclick="toggleRelay(${st.id}, 2)" class="flex items-center justify-between px-2.5 py-1.5 rounded-lg border text-left transition cursor-pointer ${st.relay2 ? 'bg-cyan-500/15 border-cyan-500/40 text-cyan-200' : 'bg-slate-900 border-slate-800 text-slate-400'}">
-                                <div class="min-w-0 pr-1">
-                                    <div class="text-[11px] font-bold truncate">Relay 2</div>
-                                    <div class="text-[9px] opacity-75 truncate">${st.relay2 ? 'ON' : 'OFF'}</div>
-                                </div>
-                                <span class="w-8 h-4 rounded-full p-0.5 transition-colors shrink-0 flex items-center ${st.relay2 ? 'bg-cyan-500 justify-end' : 'bg-slate-700 justify-start'}">
-                                    <span class="w-3 h-3 rounded-full bg-white shadow"></span>
-                                </span>
-                            </button>
-                        </div>
-
-                        ${isOverload ? `
-                        <button onclick="shedLoadStation(${st.id})" class="w-full py-1.5 px-3 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-bold flex items-center justify-center gap-1.5 shadow-md shadow-rose-600/30 transition cursor-pointer">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
-                            </svg>
-                            <span>Sa thải tải (Ngắt Relay 2)</span>
-                        </button>
-                        ` : ''}
-                    </div>
-                </div>
-                `;
-            }).join('');
-        }
-
-        // =========================================================================
-        // E. TƯƠNG TÁC ĐIỀU KHIỂN RELAY, SA THẢI TẢI, BỘ LỌC & XUẤT BÁO CÁO CSV
-        // =========================================================================
-        function toggleRelay(stationId, relayNum) {
-            const st = stations.find(s => s.id === stationId);
-            if (!st) return;
-
-            if (relayNum === 1) st.relay1 = !st.relay1;
-            if (relayNum === 2) st.relay2 = !st.relay2;
-
-            const stateStr = (relayNum === 1 ? st.relay1 : st.relay2) ? 'BẬT (ON)' : 'TẮT (OFF)';
-            showToast(`Trạm ${st.id}: Đã chuyển Relay ${relayNum} sang ${stateStr}`, 'info');
-
-            // Nếu là Trạm 1 (Phần cứng thật), gửi lệnh postMessage lên E-Ra parent window
-            if (st.id === 1 && window.parent !== window) {
-                const pin = relayNum === 1 ? 'V6' : 'V7';
-                const val = (relayNum === 1 ? st.relay1 : st.relay2) ? 1 : 0;
-                window.parent.postMessage({
-                    type: 'ERA_ACTION_CONTROL',
-                    gateway: 'Tram_1_Master',
-                    device: 'ESP32_IO',
-                    pin: pin,
-                    value: val
-                }, '*');
-            }
-
-            // Tính toán lại ngay lập tức để phản hồi tức thì
-            stepTelemetryTick();
-        }
-
-        function shedLoadStation(stationId) {
-            const st = stations.find(s => s.id === stationId);
-            if (!st) return;
-
-            st.relay2 = false;
-            if (st.power > overloadThresholdW) {
-                st.relay1 = false;
-            }
-            showToast(`Đã sa thải tải khẩn cấp cho Trạm ${st.id} (${st.name})!`, 'warning');
-            stepTelemetryTick();
-        }
-
-        function toggleSimulation() {
-            isRunning = !isRunning;
-            const badge = document.getElementById('liveBadge');
-            const dot = document.getElementById('liveDot');
-            const text = document.getElementById('liveText');
-            const btnText = document.getElementById('btnToggleRunText');
-            const iconPause = document.getElementById('iconPause');
-            const iconPlay = document.getElementById('iconPlay');
-
-            if (isRunning) {
-                badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
-                dot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-ping';
-                text.textContent = 'LIVE • ĐANG GIÁM SÁT';
-                btnText.textContent = 'Tạm dừng';
-                iconPause.classList.remove('hidden');
-                iconPlay.classList.add('hidden');
-                restartTimer();
-                showToast('Đã tiếp tục cập nhật thời gian thực', 'success');
-            } else {
-                badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30';
-                dot.className = 'w-2 h-2 rounded-full bg-amber-400';
-                text.textContent = 'ĐÃ TẠM DỪNG';
-                btnText.textContent = 'Tiếp tục';
-                iconPause.classList.add('hidden');
-                iconPlay.classList.remove('hidden');
-                clearInterval(simulationTimer);
-                showToast('Đã tạm dừng luồng dữ liệu mô phỏng', 'info');
-            }
-        }
-
-        function setSamplingRate(ms) {
-            samplingIntervalMs = ms;
-            document.querySelectorAll('.rate-btn').forEach(btn => {
-                if (Number(btn.dataset.rate) === ms) {
-                    btn.className = 'rate-btn px-2.5 py-1.5 rounded-md font-mono font-semibold bg-cyan-600 text-white shadow transition cursor-pointer';
-                } else {
-                    btn.className = 'rate-btn px-2.5 py-1.5 rounded-md font-mono font-semibold text-slate-400 hover:text-white transition cursor-pointer';
-                }
-            });
-            if (isRunning) restartTimer();
-            showToast(`Đã đổi chu kỳ cập nhật thành ${ms / 1000} giây/lần`, 'info');
-        }
-
-        function updateThreshold(val) {
-            const parsed = parseInt(val, 10);
-            if (!isNaN(parsed) && parsed >= 100) {
-                overloadThresholdW = parsed;
-                updateDashboardUI();
-            }
-        }
-
-        function setChartMetric(metric) {
-            selectedBarMetric = metric;
-            document.querySelectorAll('.metric-tab').forEach(tab => {
-                if (tab.dataset.metric === metric) {
-                    tab.className = 'metric-tab px-2.5 py-1 rounded text-[11px] font-semibold bg-cyan-600 text-white transition cursor-pointer';
-                } else {
-                    tab.className = 'metric-tab px-2.5 py-1 rounded text-[11px] font-semibold text-slate-400 hover:text-white transition cursor-pointer';
-                }
-            });
-            updateDashboardUI();
-        }
-
-        function setStationFilter(filter) {
-            currentFilter = filter;
-            document.querySelectorAll('.filter-btn').forEach(btn => {
-                if (btn.dataset.filter === filter) {
-                    btn.className = 'filter-btn px-2.5 py-1 rounded-md font-medium bg-slate-700 text-white transition cursor-pointer';
-                } else {
-                    btn.className = 'filter-btn px-2.5 py-1 rounded-md font-medium text-slate-400 hover:text-white transition cursor-pointer';
-                }
-            });
-            renderStationCards();
-        }
-
-        function exportCSV() {
-            const headers = [
-                'Thoi_Gian', 'Ma_Tram', 'Ten_Tram', 'Nguon_Du_Lieu',
-                'Dien_Ap_V', 'Dong_Dien_A', 'Cong_Suat_W', 'Dien_Nang_kWh',
-                'Tan_So_Hz', 'He_So_PF', 'Relay_1', 'Relay_2', 'Trang_Thai_Qua_Tai'
-            ];
-            const timestamp = new Date().toLocaleString('vi-VN').replace(/,/g, '');
-
-            const rows = stations.map(st => [
-                timestamp,
-                st.code,
-                `"${st.name}"`,
-                st.isRealHardware ? 'Phan_cung_that' : 'Mo_phong',
-                st.voltage.toFixed(1),
-                st.current.toFixed(2),
-                st.power,
-                st.energy.toFixed(3),
-                st.frequency.toFixed(2),
-                st.pf.toFixed(2),
-                st.relay1 ? 'ON' : 'OFF',
-                st.relay2 ? 'ON' : 'OFF',
-                st.power > overloadThresholdW ? 'QUA_TAI' : 'AN_TOAN'
-            ]);
-
-            // Thêm UTF-8 BOM (\uFEFF) để Excel mở tiếng Việt không bị lỗi font
-            const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `Bao_Cao_SCADA_10_Tram_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.csv`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-
-            showToast('Đã xuất file báo cáo CSV 10 trạm thành công!', 'success');
-        }
-
-        // =========================================================================
-        // F. TÍCH HỢP DỮ LIỆU THẬT TỪ E-RA IOT (IFRAME POSTMESSAGE & MODAL CONFIG)
-        // =========================================================================
-        window.addEventListener('message', (event) => {
-            const data = event.data;
-            if (!data || typeof data !== 'object') return;
-
-            // Ghi nhận gói tin nhận từ E-Ra IFrame / IFrame With Config
-            document.getElementById('eraPacketLog').textContent = JSON.stringify(data, null, 2);
-
-            // Hỗ trợ bóc tách các cấu trúc payload phổ biến từ E-Ra Widget Config (V0..V7 hoặc theo tên Datastream)
-            const st1 = stations[0];
-            let updated = false;
-
-            const readPin = (keys) => {
-                for (const k of keys) {
-                    if (data[k] !== undefined && data[k] !== null && !isNaN(Number(data[k]))) {
-                        return Number(data[k]);
-                    }
-                    if (data.values && data.values[k] !== undefined && !isNaN(Number(data.values[k]))) {
-                        return Number(data.values[k]);
-                    }
-                }
-                return null;
-            };
-
-            const v0 = readPin(['V0', 'Dien_Ap', 'voltage']);
-            const v1 = readPin(['V1', 'Dong_Dien', 'current']);
-            const v2 = readPin(['V2', 'Cong_Suat', 'power']);
-            const v3 = readPin(['V3', 'Dien_Nang', 'energy']);
-            const v4 = readPin(['V4', 'Tan_So', 'frequency']);
-            const v5 = readPin(['V5', 'He_So_PF', 'pf']);
-            const v6 = readPin(['V6', 'Relay_1', 'relay1']);
-            const v7 = readPin(['V7', 'Relay_2', 'relay2']);
-
-            if (v0 !== null) { st1.voltage = v0; updated = true; }
-            if (v1 !== null) { st1.current = v1; updated = true; }
-            if (v2 !== null) { st1.power = Math.round(v2); updated = true; }
-            if (v3 !== null) { st1.energy = v3; updated = true; }
-            if (v4 !== null) { st1.frequency = v4; updated = true; }
-            if (v5 !== null) { st1.pf = v5; updated = true; }
-            if (v6 !== null) { st1.relay1 = Boolean(v6); updated = true; }
-            if (v7 !== null) { st1.relay2 = Boolean(v7); updated = true; }
-
-            if (updated) {
-                eraLiveState.connected = true;
-                eraLiveState.lastPacketTime = Date.now();
-                document.getElementById('eraConnectionStatus').textContent = 'ĐÃ ĐỒNG BỘ DỮ LIỆU THẬT TỪ E-RA LIVE';
-                updateDashboardUI();
-            }
+          }
         });
+      }
+    } catch (e) {}
 
-        function openEraModal() {
-            const modal = document.getElementById('eraConfigModal');
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
+    // Khởi tạo Chart.js
+    const barChart = new Chart(document.getElementById('barChart'), {
+      type: 'bar',
+      data: {
+        labels: stations.map(s => `Trạm ${s.id}`),
+        datasets: [{ label: 'Công suất (W)', data: [], backgroundColor: [], borderRadius: 6 }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#94a3b8' }, grid: { display: false } },
+          y: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' }, beginAtZero: true }
         }
+      }
+    });
 
-        function closeEraModal() {
-            const modal = document.getElementById('eraConfigModal');
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
+    const lineChart = new Chart(document.getElementById('lineChart'), {
+      type: 'line',
+      data: {
+        labels: historyLabels,
+        datasets: [
+          { label: 'Trạm 1 (Thật)', data: histSt1, borderColor: '#10b981', tension: 0.3, pointRadius: 2 },
+          { label: 'Trạm cao nhất', data: histMax, borderColor: '#f59e0b', tension: 0.3, pointRadius: 2 },
+          { label: 'Trung bình 10 trạm', data: histAvg, borderColor: '#06b6d4', borderDash: [4,4], tension: 0.3, pointRadius: 0 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#cbd5e1', boxWidth: 12, font: { size: 11 } } } },
+        scales: {
+          x: { ticks: { color: '#64748b', maxTicksLimit: 6 }, grid: { display: false } },
+          y: { ticks: { color: '#94a3b8' }, grid: { color: '#1e293b' }, beginAtZero: true }
         }
+      }
+    });
 
-        function simulateEraIncomingPacket() {
-            const mockEraPayload = {
-                source: 'E-Ra_IFrame_SDK',
-                gateway: 'Tram_1_Master',
-                device: 'ESP32_IO',
-                V0: Number((221.5 + Math.random() * 1.5).toFixed(1)),
-                V1: 6.42,
-                V2: 1365,
-                V3: Number((stations[0].energy + 0.05).toFixed(2)),
-                V4: 50.00,
-                V5: 0.96,
-                V6: 1,
-                V7: 1
-            };
-            window.postMessage(mockEraPayload, '*');
-            showToast('Đã nhận gói tin thử nghiệm từ E-Ra (Tram_1_Master) thành công!', 'success');
+    function tickData(force = false) {
+      if (state.isPaused && !force) return;
+
+      // Nếu chưa cắm ESP32 thật, Trạm 1 dao động nhẹ quanh giá trị chuẩn để demo
+      if (!eraConnected) {
+        realStation1.u = +(220.5 + (Math.random() - 0.5) * 2.4).toFixed(1);
+        const rFactor1 = (state.relays[0].r1 ? 0.35 : 0) + (state.relays[0].r2 ? 0.65 : 0);
+        realStation1.p = +(850 * rFactor1 * (1 + (Math.random() - 0.5) * 0.06)).toFixed(1);
+        realStation1.i = +(realStation1.p / (realStation1.u * realStation1.pf)).toFixed(2);
+        realStation1.e = +(realStation1.e + realStation1.p * state.intervalSec / 3600000).toFixed(3);
+      }
+
+      // Gán Trạm 1
+      stations[0] = { id: 1, name: stationMeta[0].name, ...realStation1 };
+
+      // Gán Trạm 2 -> Trạm 10 theo nút gạt
+      for (let i = 1; i < 10; i++) {
+        const rFactor = (state.relays[i].r1 ? 0.35 : 0) + (state.relays[i].r2 ? 0.65 : 0);
+        if (!state.isSimMode) {
+          // Chế độ đồng bộ dữ liệu từ Trạm 1 thật
+          stations[i] = {
+            id: i + 1,
+            name: stationMeta[i].name,
+            u: realStation1.u,
+            i: +(realStation1.i * rFactor).toFixed(2),
+            p: +(realStation1.p * rFactor).toFixed(1),
+            e: realStation1.e,
+            f: realStation1.f,
+            pf: realStation1.pf
+          };
+        } else {
+          // Chế độ mô phỏng từng khu vực riêng biệt trong tòa nhà 2 tầng
+          const noise = (Math.random() - 0.5) * 0.14;
+          const simP = +(stationMeta[i].baseP * rFactor * (1 + noise)).toFixed(1);
+          const simU = +(220 + (Math.random() - 0.5) * 3).toFixed(1);
+          const simPF = +(0.89 + Math.random() * 0.09).toFixed(2);
+          const simI = +(simP / (simU * simPF)).toFixed(2);
+          stations[i].u = simU;
+          stations[i].i = simI;
+          stations[i].p = simP;
+          stations[i].e = +(stations[i].e + simP * state.intervalSec / 3600000).toFixed(2);
+          stations[i].f = 50.0;
+          stations[i].pf = simPF;
         }
+      }
 
-        function resetStation1ToLocalTwin() {
-            eraLiveState.connected = false;
-            eraLiveState.lastPacketTime = null;
-            document.getElementById('eraConnectionStatus').textContent = 'Chế độ Song Sinh Phần Cứng (Sẵn sàng nhận gói tin E-Ra)';
-            showToast('Đã chuyển Trạm 1 về chế độ mô phỏng tương tác trực tiếp', 'info');
-            stepTelemetryTick();
-        }
+      // Cập nhật lịch sử biểu đồ đường
+      const nowStr = new Date().toLocaleTimeString('vi-VN');
+      document.getElementById('clockTxt').innerText = nowStr;
+      const totalP = stations.reduce((acc, s) => acc + s.p, 0);
+      const maxP = Math.max(...stations.map(s => s.p));
 
-        function saveEraApiConfig() {
-            eraLiveState.apiToken = document.getElementById('eraApiTokenInput').value.trim();
-            eraLiveState.apiUrl = document.getElementById('eraApiUrlInput').value.trim();
-            closeEraModal();
-            showToast('Đã lưu cấu hình kết nối E-Ra IoT cho Trạm 1!', 'success');
-        }
+      historyLabels.push(nowStr);
+      histSt1.push(stations[0].p);
+      histMax.push(maxP);
+      histAvg.push(+(totalP / 10).toFixed(1));
+      if (historyLabels.length > 20) {
+        historyLabels.shift(); histSt1.shift(); histMax.shift(); histAvg.shift();
+      }
 
-        function copyPinMapping() {
-            const text = [
-                'Gateway: Tram_1_Master | Device: ESP32_IO',
-                'V0: Dien_Ap (V)',
-                'V1: Dong_Dien (A)',
-                'V2: Cong_Suat (W)',
-                'V3: Dien_Nang (kWh)',
-                'V4: Tan_So (Hz)',
-                'V5: He_So_PF (PF)',
-                'V6: Relay_1 (ON/OFF)',
-                'V7: Relay_2 (ON/OFF)'
-            ].join('\n');
+      renderDashboard();
+    }
 
-            const tempTextarea = document.createElement('textarea');
-            tempTextarea.value = text;
-            document.body.appendChild(tempTextarea);
-            tempTextarea.select();
-            document.execCommand('copy');
-            document.body.removeChild(tempTextarea);
+    function renderDashboard() {
+      const totalP = stations.reduce((acc, s) => acc + s.p, 0);
+      const totalE = stations.reduce((acc, s) => acc + s.e, 0);
+      const maxSt = stations.reduce((prev, cur) => (cur.p > prev.p ? cur : prev), stations[0]);
+      const overloads = stations.filter(s => s.p > state.threshold);
+      const activeRelays = state.relays.reduce((acc, r) => acc + (r.r1 ? 1 : 0) + (r.r2 ? 1 : 0), 0);
 
-            showToast('Đã sao chép bảng ánh xạ Virtual Pins V0–V7!', 'success');
-        }
+      document.getElementById('kpiTotalP').innerText = `${(totalP / 1000).toFixed(2)} kW`;
+      const share = totalP > 0 ? ((stations[0].p / totalP) * 100).toFixed(1) : 0;
+      document.getElementById('kpiShare').innerText = `${share}% (${stations[0].p.toFixed(0)} W)`;
 
-        // =========================================================================
-        // G. HỆ THỐNG THÔNG BÁO TOAST
-        // =========================================================================
-        function showToast(message, type = 'info') {
-            const container = document.getElementById('toastContainer');
-            const toast = document.createElement('div');
+      document.getElementById('kpiTotalE').innerText = `${totalE.toFixed(2)} kWh`;
+      document.getElementById('kpiSt1E').innerText = `Trạm 1: ${stations[0].e.toFixed(2)} kWh`;
+      document.getElementById('kpiRelayCount').innerText = `Relay bật: ${activeRelays}/20`;
 
-            const colors = {
-                success: 'bg-emerald-950/95 border-emerald-500/60 text-emerald-200',
-                warning: 'bg-amber-950/95 border-amber-500/60 text-amber-200',
-                info: 'bg-slate-900/95 border-cyan-500/60 text-cyan-100'
-            };
+      document.getElementById('kpiMaxP').innerText = `${maxSt.p.toFixed(0)} W`;
+      document.getElementById('kpiMaxName').innerText = maxSt.name;
+      document.getElementById('kpiMaxI').innerText = `${maxSt.i.toFixed(2)} A`;
 
-            toast.className = `pointer-events-auto px-4 py-2.5 rounded-xl border shadow-xl text-xs font-medium flex items-center gap-2 transition-all duration-300 ${colors[type] || colors.info}`;
-            toast.innerHTML = `
-                <span class="w-2 h-2 rounded-full ${type === 'success' ? 'bg-emerald-400' : (type === 'warning' ? 'bg-amber-400' : 'bg-cyan-400')}"></span>
-                <span>${message}</span>
-            `;
+      const ovEl = document.getElementById('kpiOverload');
+      ovEl.innerText = `${overloads.length} / 10 Trạm`;
+      ovEl.style.color = overloads.length > 0 ? '#ef4444' : '#10b981';
+      document.getElementById('kpiOverloadList').innerText = overloads.length > 0
+        ? `Quá tải: ${overloads.map(o => 'Trạm ' + o.id).join(', ')}`
+        : 'Tất cả dưới ngưỡng';
+      document.getElementById('kpiThreshLbl').innerText = `> ${state.threshold}W`;
 
-            container.appendChild(toast);
-            setTimeout(() => {
-                toast.style.opacity = '0';
-                toast.style.transform = 'translateY(8px)';
-                setTimeout(() => toast.remove(), 300);
-            }, 3200);
-        }
+      // Cập nhật biểu đồ cột
+      const metricMap = { p: 'Công suất (W)', i: 'Dòng điện (A)', u: 'Điện áp (V)', e: 'Điện năng (kWh)' };
+      barChart.data.datasets[0].label = metricMap[state.metric];
+      barChart.data.datasets[0].data = stations.map(s => s[state.metric]);
+      barChart.data.datasets[0].backgroundColor = stations.map((s, i) => {
+        if (s.p > state.threshold) return '#ef4444';
+        if (i === 0) return '#10b981';
+        return state.isSimMode ? '#f59e0b' : '#06b6d4';
+      });
+      barChart.update('none');
+      lineChart.update('none');
 
-        function restartTimer() {
-            if (simulationTimer) clearInterval(simulationTimer);
-            simulationTimer = setInterval(stepTelemetryTick, samplingIntervalMs);
-        }
+      // Render 10 thẻ trạm
+      const grid = document.getElementById('stationsGrid');
+      grid.innerHTML = stations.map((s, idx) => {
+        const isReal = idx === 0;
+        const isAlert = s.p > state.threshold;
+        const cls = isReal ? 'real' : (state.isSimMode ? 'sim' : 'sync');
+        const tagCls = isReal ? 'tag-real' : (state.isSimMode ? 'tag-sim' : 'tag-sync');
+        const tagTxt = isReal ? 'Phần cứng thật' : (state.isSimMode ? 'Mô phỏng' : 'Đồng bộ Trạm 1');
+        const r = state.relays[idx];
 
-        // =========================================================================
-        // H. KHỞI CHẠY KHI TẢI XONG TRANG
-        // =========================================================================
-        window.onload = function () {
-            initCharts();
-            // Nạp sẵn 8 điểm dữ liệu ban đầu cho biểu đồ đường trông đẹp ngay khi mở
-            for (let i = 0; i < 8; i++) {
-                stepTelemetryTick();
-            }
-            restartTimer();
-        };
-    </script>
+        return `
+          <div class="st-card ${cls} ${isAlert ? 'alert' : ''}">
+            <div class="st-top">
+              <div class="st-name">${s.name}</div>
+              <span class="st-tag ${tagCls}">${tagTxt}</span>
+            </div>
+            <div class="st-metrics">
+              <div class="m-cell"><div class="m-k">Điện áp</div><div class="m-v">${s.u.toFixed(1)}V</div></div>
+              <div class="m-cell"><div class="m-k">Dòng điện</div><div class="m-v">${s.i.toFixed(2)}A</div></div>
+              <div class="m-cell"><div class="m-k">Công suất</div><div class="m-v" style="color:${isAlert ? '#ef4444' : '#38bdf8'}">${s.p.toFixed(0)}W</div></div>
+              <div class="m-cell"><div class="m-k">Điện năng</div><div class="m-v">${s.e.toFixed(1)}kWh</div></div>
+              <div class="m-cell"><div class="m-k">Tần số</div><div class="m-v">${s.f.toFixed(1)}Hz</div></div>
+              <div class="m-cell"><div class="m-k">Cos φ</div><div class="m-v">${s.pf.toFixed(2)}</div></div>
+            </div>
+            <div class="relay-row">
+              <button class="r-btn ${r.r1 ? 'on' : 'off'}" onclick="toggleRelay(${idx}, 'r1')">
+                R1 (Ưu tiên): ${r.r1 ? 'BẬT' : 'TẮT'}
+              </button>
+              <button class="r-btn ${r.r2 ? 'on' : 'off'}" onclick="toggleRelay(${idx}, 'r2')">
+                R2 (Sa thải): ${r.r2 ? 'BẬT' : 'TẮT'}
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function syncControlsUI() {
+      const pauseBtn = document.getElementById('pauseBtn');
+      const liveBadge = document.getElementById('liveBadge');
+      if (state.isPaused) {
+        pauseBtn.innerText = '▶ Tiếp tục';
+        pauseBtn.classList.add('paused');
+        liveBadge.innerText = '⏸ ĐÃ TẠM DỪNG';
+        liveBadge.style.color = '#f59e0b';
+      } else {
+        pauseBtn.innerText = '⏸ Tạm dừng';
+        pauseBtn.classList.remove('paused');
+        liveBadge.innerText = '● LIVE • ĐANG GIÁM SÁT';
+        liveBadge.style.color = '#10b981';
+      }
+
+      document.getElementById('simModeToggle').checked = state.isSimMode;
+      document.getElementById('lblSync').style.color = state.isSimMode ? '#94a3b8' : '#06b6d4';
+      document.getElementById('lblSim').style.color = state.isSimMode ? '#f59e0b' : '#94a3b8';
+
+      document.querySelectorAll('[data-sec]').forEach(b => {
+        b.classList.toggle('active', Number(b.dataset.sec) === state.intervalSec);
+      });
+      document.querySelectorAll('#metricBtns [data-m]').forEach(b => {
+        b.classList.toggle('active', b.dataset.m === state.metric);
+      });
+      document.getElementById('threshInput').value = state.threshold;
+    }
+
+    function togglePause() {
+      state.isPaused = !state.isPaused;
+      persistState();
+      syncControlsUI();
+      if (!state.isPaused) tickData(true);
+    }
+
+    function toggleSimMode() {
+      state.isSimMode = document.getElementById('simModeToggle').checked;
+      persistState();
+      syncControlsUI();
+      tickData(true);
+    }
+
+    function setIntervalSec(sec) {
+      state.intervalSec = sec;
+      persistState();
+      syncControlsUI();
+      startTimer();
+    }
+
+    function setMetric(m) {
+      state.metric = m;
+      persistState();
+      syncControlsUI();
+      renderDashboard();
+    }
+
+    function saveAndRefresh() {
+      state.threshold = Math.max(100, Number(document.getElementById('threshInput').value) || 2500);
+      persistState();
+      renderDashboard();
+    }
+
+    function toggleRelay(idx, key) {
+      state.relays[idx][key] = !state.relays[idx][key];
+      persistState();
+      tickData(true);
+    }
+
+    function exportCSV() {
+      const headers = ['Tram,Nguon_Du_Lieu,Dien_Ap_V,Dong_Dien_A,Cong_Suat_W,Dien_Nang_kWh,Tan_So_Hz,He_So_PF,Relay_1,Relay_2'];
+      const rows = stations.map((s, i) => [
+        `"${s.name}"`,
+        i === 0 ? 'Phan cung that' : (state.isSimMode ? 'Mo phong' : 'Dong bo Tram 1'),
+        s.u, s.i, s.p, s.e, s.f, s.pf,
+        state.relays[i].r1 ? 'ON' : 'OFF',
+        state.relays[i].r2 ? 'ON' : 'OFF'
+      ].join(','));
+      const blob = new Blob(['\uFEFF' + headers.concat(rows).join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `bao_cao_10_tram_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.csv`;
+      a.click();
+    }
+
+    function startTimer() {
+      if (timerId) clearInterval(timerId);
+      timerId = setInterval(() => tickData(false), state.intervalSec * 1000);
+    }
+
+    syncControlsUI();
+    tickData(true);
+    startTimer();
+  </script>
 </body>
 </html>
