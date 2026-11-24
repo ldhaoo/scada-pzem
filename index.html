@@ -227,6 +227,7 @@
       </div>
 
       <button class="btn hybrid" id="resetBtn" onclick="resetDefaultHybrid()">↺ Mặc định (1 Thật + 9 Mô phỏng)</button>
+      <button class="btn" id="resetEnergyBtn" onclick="resetEnergyCounter()">↺ Reset kWh</button>
       <button class="btn csv" onclick="exportCSV()">⬇ Xuất CSV</button>
 
       <div class="right-tools">
@@ -245,7 +246,7 @@
     </div>
     <div class="kpi">
       <div class="kpi-lbl">Tổng điện năng tích lũy</div>
-      <div class="kpi-val" id="kpiTotalE">0.00 kWh</div>
+      <div class="kpi-val" id="kpiTotalE">0.000 kWh</div>
       <div class="kpi-sub"><span id="kpiSt1E">Trạm 1: -- kWh</span><span id="kpiRelayCount">Relay bật: 20/20</span></div>
     </div>
     <div class="kpi">
@@ -309,23 +310,24 @@
     const ADMIN_PASSWORD = "42300291";
     const AUTH_SIG       = "TDTU_LDHAOO_SCADA_SIG_42300291";
     const AUTH_KEY       = "scada_admin_unlocked_v2";
-    const LOCAL_KEY      = "scada_realtime_state_v6";
+    const LOCAL_KEY      = "scada_realtime_state_v7";
 
-    const TOPIC_STATE    = "tdtu/ldhaoo/scada_pzem_42300291/state_v2";
+    const TOPIC_STATE    = "tdtu/ldhaoo/scada_pzem_42300291/state_v3";
     const TOPIC_HW       = "tdtu/ldhaoo/scada_pzem_42300291/hw_v2";
     const CLIENT_ID      = "scada_ui_" + Math.random().toString(16).slice(2, 10);
 
+    // Khởi điểm điện năng tích lũy của toàn bộ 10 trạm từ 0.000 kWh
     const stationMeta = [
-      { name: "Trạm 1 • Phòng Khách (Tầng 1)", baseP: 650, baseE: 120.0 },
-      { name: "Trạm 2 • Khu Bếp & Phòng Ăn (Tầng 1)", baseP: 1650, baseE: 142.4 },
-      { name: "Trạm 3 • Phòng Ngủ 1 (Tầng 1)", baseP: 980, baseE: 98.2 },
-      { name: "Trạm 4 • Khu Vệ Sinh & Giặt Phơi (Tầng 1)", baseP: 1150, baseE: 84.5 },
-      { name: "Trạm 5 • Sân, Cổng & Hành Lang (Tầng 1)", baseP: 180, baseE: 46.0 },
-      { name: "Trạm 6 • Phòng Ngủ 2 (Tầng 2)", baseP: 1280, baseE: 165.8 },
-      { name: "Trạm 7 • Phòng Ngủ 3 (Tầng 2)", baseP: 1120, baseE: 151.3 },
-      { name: "Trạm 8 • Phòng Làm Việc (Tầng 2)", baseP: 540, baseE: 79.1 },
-      { name: "Trạm 9 • Phòng Sinh Hoạt Chung (Tầng 2)", baseP: 820, baseE: 110.9 },
-      { name: "Trạm 10 • Ban Công & Sân Thượng (Tầng 2)", baseP: 240, baseE: 35.7 }
+      { name: "Trạm 1 • Phòng Khách (Tầng 1)", baseP: 650, baseE: 0.0 },
+      { name: "Trạm 2 • Khu Bếp & Phòng Ăn (Tầng 1)", baseP: 1650, baseE: 0.0 },
+      { name: "Trạm 3 • Phòng Ngủ 1 (Tầng 1)", baseP: 980, baseE: 0.0 },
+      { name: "Trạm 4 • Khu Vệ Sinh & Giặt Phơi (Tầng 1)", baseP: 1150, baseE: 0.0 },
+      { name: "Trạm 5 • Sân, Cổng & Hành Lang (Tầng 1)", baseP: 180, baseE: 0.0 },
+      { name: "Trạm 6 • Phòng Ngủ 2 (Tầng 2)", baseP: 1280, baseE: 0.0 },
+      { name: "Trạm 7 • Phòng Ngủ 3 (Tầng 2)", baseP: 1120, baseE: 0.0 },
+      { name: "Trạm 8 • Phòng Làm Việc (Tầng 2)", baseP: 540, baseE: 0.0 },
+      { name: "Trạm 9 • Phòng Sinh Hoạt Chung (Tầng 2)", baseP: 820, baseE: 0.0 },
+      { name: "Trạm 10 • Ban Công & Sân Thượng (Tầng 2)", baseP: 240, baseE: 0.0 }
     ];
 
     const defaultState = {
@@ -342,7 +344,6 @@
     const savedLocal = JSON.parse(localStorage.getItem(LOCAL_KEY) || 'null');
     let state = savedLocal ? { ...defaultState, ...savedLocal } : JSON.parse(JSON.stringify(defaultState));
 
-    // Mặc định khóa bảo vệ (Chỉ xem) khi mở trang; dùng sessionStorage để tự khóa khi đóng tab
     let isAdmin = sessionStorage.getItem(AUTH_KEY) === "true";
 
     let realHardwareSlots = Array.from({ length: 10 }, () => ({
@@ -541,7 +542,7 @@
         const simU = +(220 + (r2 - 0.5) * 3).toFixed(1);
         const simPF = +(0.89 + r1 * 0.09).toFixed(2);
         const simI = +(simP / (simU * simPF)).toFixed(2);
-        const simE = +(meta.baseE + (meta.baseP * rFactor / 1000) * elapsedHours).toFixed(2);
+        const simE = +(meta.baseE + (meta.baseP * rFactor / 1000) * elapsedHours).toFixed(3);
 
         return { id: i + 1, name: meta.name, u: simU, i: simI, p: simP, e: simE, f: 50.0, pf: simPF };
       });
@@ -662,8 +663,8 @@
         ? `${onlineHwPower.toFixed(0)} W (${onlineHwCount} trạm online)`
         : 'Chờ kết nối phần cứng';
 
-      document.getElementById('kpiSt1E').innerText = stations[0].e !== null ? `Trạm 1: ${stations[0].e.toFixed(2)} kWh` : 'Trạm 1: -- kWh';
-      document.getElementById('kpiTotalE').innerText = `${totalE.toFixed(2)} kWh`;
+      document.getElementById('kpiSt1E').innerText = stations[0].e !== null ? `Trạm 1: ${stations[0].e.toFixed(3)} kWh` : 'Trạm 1: -- kWh';
+      document.getElementById('kpiTotalE').innerText = `${totalE.toFixed(3)} kWh`;
       document.getElementById('kpiRelayCount').innerText = `Relay bật: ${activeRelays}/20`;
 
       document.getElementById('kpiMaxP').innerText = `${(maxSt.p ?? 0).toFixed(0)} W`;
@@ -722,7 +723,7 @@
               <div class="m-cell"><div class="m-k">Điện áp</div><div class="m-v">${fmt(s.u, 'V', 1)}</div></div>
               <div class="m-cell"><div class="m-k">Dòng điện</div><div class="m-v">${fmt(s.i, 'A', 2)}</div></div>
               <div class="m-cell"><div class="m-k">Công suất</div><div class="m-v" style="color:${isAlert ? '#ef4444' : '#38bdf8'}">${fmt(s.p, 'W', 0)}</div></div>
-              <div class="m-cell"><div class="m-k">Điện năng</div><div class="m-v">${fmt(s.e, 'kWh', 1)}</div></div>
+              <div class="m-cell"><div class="m-k">Điện năng</div><div class="m-v">${fmt(s.e, 'kWh', 3)}</div></div>
               <div class="m-cell"><div class="m-k">Tần số</div><div class="m-v">${fmt(s.f, 'Hz', 1)}</div></div>
               <div class="m-cell"><div class="m-k">Cos φ</div><div class="m-v">${fmt(s.pf, '', 2)}</div></div>
             </div>
@@ -752,6 +753,7 @@
 
       document.getElementById('pauseBtn').disabled = !isAdmin;
       document.getElementById('resetBtn').disabled = !isAdmin;
+      document.getElementById('resetEnergyBtn').disabled = !isAdmin;
       document.getElementById('threshInput').disabled = !isAdmin;
       document.querySelectorAll('#secBtns .seg-btn').forEach(b => b.disabled = !isAdmin);
 
@@ -785,6 +787,14 @@
     function resetDefaultHybrid() {
       if (!isAdmin) return;
       state.hardwareModes = [true, false, false, false, false, false, false, false, false, false];
+      rebuildHistory();
+      tickData(true);
+      broadcastAdminState();
+    }
+
+    function resetEnergyCounter() {
+      if (!isAdmin) return;
+      state.epochStart = Date.now();
       rebuildHistory();
       tickData(true);
       broadcastAdminState();
