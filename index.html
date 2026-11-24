@@ -122,14 +122,13 @@
     }
     .st-card {
       background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px;
+      border-top-width: 3px;
     }
-    .st-card.hw-online  { border-top: 3px solid var(--green); }
-    .st-card.hw-waiting { border-top: 3px solid var(--cyan); }
-    .st-card.sim-mode   { border-top: 3px solid var(--amber); }
-    .st-card.alert      { border-color: var(--red); box-shadow: 0 0 12px rgba(239,68,68,0.2); }
+    .st-card.alert { border-color: var(--red) !important; box-shadow: 0 0 12px rgba(239,68,68,0.22); }
 
     .st-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; margin-bottom: 8px; }
-    .st-name { font-size: 13px; font-weight: 700; line-height: 1.3; }
+    .st-name { font-size: 13px; font-weight: 700; line-height: 1.3; display: flex; align-items: center; gap: 6px; }
+    .zone-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
     .st-tag { font-size: 10px; padding: 2px 6px; border-radius: 6px; font-weight: 700; white-space: nowrap; }
     .tag-online  { background: rgba(16,185,129,0.18); color: var(--green); }
     .tag-waiting { background: rgba(6,182,212,0.18); color: var(--cyan); }
@@ -316,18 +315,18 @@
     const TOPIC_HW       = "tdtu/ldhaoo/scada_pzem_42300291/hw_v2";
     const CLIENT_ID      = "scada_ui_" + Math.random().toString(16).slice(2, 10);
 
-    // Khởi điểm điện năng tích lũy của toàn bộ 10 trạm từ 0.000 kWh
+    // 10 màu riêng biệt cho 10 khu vực (đồng bộ giữa cột biểu đồ & thẻ trạm)
     const stationMeta = [
-      { name: "Trạm 1 • Phòng Khách (Tầng 1)", baseP: 650, baseE: 0.0 },
-      { name: "Trạm 2 • Khu Bếp & Phòng Ăn (Tầng 1)", baseP: 1650, baseE: 0.0 },
-      { name: "Trạm 3 • Phòng Ngủ 1 (Tầng 1)", baseP: 980, baseE: 0.0 },
-      { name: "Trạm 4 • Khu Vệ Sinh & Giặt Phơi (Tầng 1)", baseP: 1150, baseE: 0.0 },
-      { name: "Trạm 5 • Sân, Cổng & Hành Lang (Tầng 1)", baseP: 180, baseE: 0.0 },
-      { name: "Trạm 6 • Phòng Ngủ 2 (Tầng 2)", baseP: 1280, baseE: 0.0 },
-      { name: "Trạm 7 • Phòng Ngủ 3 (Tầng 2)", baseP: 1120, baseE: 0.0 },
-      { name: "Trạm 8 • Phòng Làm Việc (Tầng 2)", baseP: 540, baseE: 0.0 },
-      { name: "Trạm 9 • Phòng Sinh Hoạt Chung (Tầng 2)", baseP: 820, baseE: 0.0 },
-      { name: "Trạm 10 • Ban Công & Sân Thượng (Tầng 2)", baseP: 240, baseE: 0.0 }
+      { name: "Trạm 1 • Phòng Khách (Tầng 1)",            baseP: 650,  baseE: 0.0, color: "#10b981" }, // Xanh ngọc lục bảo
+      { name: "Trạm 2 • Khu Bếp & Phòng Ăn (Tầng 1)",     baseP: 1650, baseE: 0.0, color: "#f59e0b" }, // Vàng hổ phách
+      { name: "Trạm 3 • Phòng Ngủ 1 (Tầng 1)",            baseP: 980,  baseE: 0.0, color: "#06b6d4" }, // Xanh Cyan
+      { name: "Trạm 4 • Khu Vệ Sinh & Giặt Phơi (Tầng 1)",baseP: 1150, baseE: 0.0, color: "#3b82f6" }, // Xanh dương
+      { name: "Trạm 5 • Sân, Cổng & Hành Lang (Tầng 1)",  baseP: 180,  baseE: 0.0, color: "#8b5cf6" }, // Tím Violet
+      { name: "Trạm 6 • Phòng Ngủ 2 (Tầng 2)",            baseP: 1280, baseE: 0.0, color: "#ec4899" }, // Hồng Magenta
+      { name: "Trạm 7 • Phòng Ngủ 3 (Tầng 2)",            baseP: 1120, baseE: 0.0, color: "#14b8a6" }, // Xanh Teal
+      { name: "Trạm 8 • Phòng Làm Việc (Tầng 2)",         baseP: 540,  baseE: 0.0, color: "#eab308" }, // Vàng tươi
+      { name: "Trạm 9 • Phòng Sinh Hoạt Chung (Tầng 2)",  baseP: 820,  baseE: 0.0, color: "#6366f1" }, // Xanh chàm Indigo
+      { name: "Trạm 10 • Ban Công & Sân Thượng (Tầng 2)", baseP: 240,  baseE: 0.0, color: "#f97316" }  // Cam đậm
     ];
 
     const defaultState = {
@@ -553,7 +552,12 @@
       type: 'bar',
       data: {
         labels: stations.map(s => `Trạm ${s.id}`),
-        datasets: [{ label: 'Công suất (W)', data: [], backgroundColor: [], borderRadius: 6 }]
+        datasets: [{
+          label: 'Công suất (W)',
+          data: [],
+          backgroundColor: stationMeta.map(m => m.color),
+          borderRadius: 6
+        }]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
@@ -679,13 +683,13 @@
         : 'Tất cả dưới ngưỡng';
       document.getElementById('kpiThreshLbl').innerText = `> ${state.threshold}W`;
 
+      // Cập nhật biểu đồ với 10 màu riêng biệt (chuyển đỏ nếu quá tải)
       const metricMap = { p: 'Công suất (W)', i: 'Dòng điện (A)', u: 'Điện áp (V)', e: 'Điện năng (kWh)' };
       barChart.data.datasets[0].label = metricMap[state.metric];
       barChart.data.datasets[0].data = stations.map(s => s[state.metric] ?? 0);
       barChart.data.datasets[0].backgroundColor = stations.map((s, i) => {
         if ((s.p ?? 0) > state.threshold) return '#ef4444';
-        if (state.hardwareModes[i]) return realHardwareSlots[i].online ? '#10b981' : '#06b6d4';
-        return '#f59e0b';
+        return stationMeta[i].color;
       });
       barChart.update('none');
       lineChart.update('none');
@@ -697,15 +701,18 @@
         const isOnline = realHardwareSlots[idx].online;
         const isAlert = (s.p ?? 0) > state.threshold;
         const r = state.relays[idx];
+        const zoneColor = stationMeta[idx].color;
 
-        let cardCls = useHw ? (isOnline ? 'hw-online' : 'hw-waiting') : 'sim-mode';
-        let tagCls  = useHw ? (isOnline ? 'tag-online' : 'tag-waiting') : 'tag-sim';
-        let tagTxt  = useHw ? (isOnline ? 'Phần cứng online' : 'Chờ thiết bị thật') : 'Mô phỏng';
+        let tagCls = useHw ? (isOnline ? 'tag-online' : 'tag-waiting') : 'tag-sim';
+        let tagTxt = useHw ? (isOnline ? 'Phần cứng online' : 'Chờ thiết bị thật') : 'Mô phỏng';
 
         return `
-          <div class="st-card ${cardCls} ${isAlert ? 'alert' : ''}">
+          <div class="st-card ${isAlert ? 'alert' : ''}" style="border-top-color:${zoneColor};">
             <div class="st-top">
-              <div class="st-name">${s.name}</div>
+              <div class="st-name">
+                <span class="zone-dot" style="background:${zoneColor};"></span>
+                <span>${s.name}</span>
+              </div>
               <span class="st-tag ${tagCls}">${tagTxt}</span>
             </div>
 
@@ -722,7 +729,7 @@
             <div class="st-metrics">
               <div class="m-cell"><div class="m-k">Điện áp</div><div class="m-v">${fmt(s.u, 'V', 1)}</div></div>
               <div class="m-cell"><div class="m-k">Dòng điện</div><div class="m-v">${fmt(s.i, 'A', 2)}</div></div>
-              <div class="m-cell"><div class="m-k">Công suất</div><div class="m-v" style="color:${isAlert ? '#ef4444' : '#38bdf8'}">${fmt(s.p, 'W', 0)}</div></div>
+              <div class="m-cell"><div class="m-k">Công suất</div><div class="m-v" style="color:${isAlert ? '#ef4444' : zoneColor}">${fmt(s.p, 'W', 0)}</div></div>
               <div class="m-cell"><div class="m-k">Điện năng</div><div class="m-v">${fmt(s.e, 'kWh', 3)}</div></div>
               <div class="m-cell"><div class="m-k">Tần số</div><div class="m-v">${fmt(s.f, 'Hz', 1)}</div></div>
               <div class="m-cell"><div class="m-k">Cos φ</div><div class="m-v">${fmt(s.pf, '', 2)}</div></div>
