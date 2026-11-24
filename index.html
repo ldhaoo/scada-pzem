@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SCADA Giám Sát & So Sánh 10 Trạm Năng Lượng (PZEM-004T)</title>
+  <title>SCADA Giám Sát & So Sánh 10 Khu Vực (PZEM-004T)</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://www.unpkg.com/@eohjsc/era-widget@1.1.3/src/index.js"></script>
   <style>
@@ -43,19 +43,19 @@
       border: 1px solid rgba(16,185,129,0.35);
     }
 
-    /* Controls Toolbar */
+    /* Toolbar */
     .toolbar {
-      display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+      display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
       margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); font-size: 12px;
     }
     .btn {
-      padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border);
+      padding: 6px 11px; border-radius: 8px; border: 1px solid var(--border);
       background: var(--card); color: var(--text); cursor: pointer; font-weight: 600; font-size: 12px;
     }
     .btn:hover { border-color: var(--cyan); }
     .btn.paused { background: rgba(245,158,11,0.2); border-color: var(--amber); color: var(--amber); }
     .btn.csv { background: rgba(16,185,129,0.15); border-color: var(--green); color: var(--green); }
-    .btn.era-connected { background: rgba(6,182,212,0.18); border-color: var(--cyan); color: var(--cyan); }
+    .btn.hybrid { background: rgba(6,182,212,0.14); border-color: var(--cyan); color: var(--cyan); }
 
     .seg-group { display: inline-flex; background: var(--bg); padding: 2px; border-radius: 8px; border: 1px solid var(--border); }
     .seg-btn {
@@ -65,26 +65,14 @@
     .seg-btn.active { background: var(--cyan); color: #082f49; }
 
     .thresh-input {
-      width: 68px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border);
+      width: 66px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--border);
       background: var(--bg); color: var(--amber); font-weight: 700; font-size: 12px; text-align: center;
     }
 
-    /* Mode Switch (Sync vs Sim) */
-    .mode-switch-wrap {
-      display: inline-flex; align-items: center; gap: 8px; background: var(--bg);
-      padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); margin-left: auto;
+    .hw-summary {
+      margin-left: auto; padding: 5px 10px; border-radius: 8px; font-size: 11px; font-weight: 700;
+      background: rgba(6,182,212,0.12); border: 1px solid rgba(6,182,212,0.35); color: var(--cyan);
     }
-    .switch { position: relative; display: inline-block; width: 42px; height: 22px; }
-    .switch input { opacity: 0; width: 0; height: 0; }
-    .slider {
-      position: absolute; cursor: pointer; inset: 0; background: var(--cyan); transition: .25s; border-radius: 22px;
-    }
-    .slider:before {
-      position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px;
-      background: #fff; transition: .25s; border-radius: 50%;
-    }
-    input:checked + .slider { background: var(--amber); }
-    input:checked + .slider:before { transform: translateX(20px); }
 
     /* KPI Cards */
     .kpi-grid {
@@ -112,22 +100,41 @@
     /* 10 Stations Cards */
     .section-title { font-size: 13px; font-weight: 700; color: var(--muted); margin: 6px 0 10px; text-transform: uppercase; }
     .stations-grid {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(245px, 1fr)); gap: 12px;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)); gap: 12px;
     }
     .st-card {
       background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px;
     }
-    .st-card.real { border-top: 3px solid var(--green); }
-    .st-card.sync { border-top: 3px solid var(--cyan); }
-    .st-card.sim  { border-top: 3px solid var(--amber); }
-    .st-card.alert { border-color: var(--red); box-shadow: 0 0 12px rgba(239,68,68,0.2); }
+    .st-card.hw-online  { border-top: 3px solid var(--green); }
+    .st-card.hw-waiting { border-top: 3px solid var(--cyan); }
+    .st-card.sim-mode   { border-top: 3px solid var(--amber); }
+    .st-card.alert      { border-color: var(--red); box-shadow: 0 0 12px rgba(239,68,68,0.2); }
 
     .st-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 6px; margin-bottom: 8px; }
-    .st-name { font-size: 13px; font-weight: 700; }
+    .st-name { font-size: 13px; font-weight: 700; line-height: 1.3; }
     .st-tag { font-size: 10px; padding: 2px 6px; border-radius: 6px; font-weight: 700; white-space: nowrap; }
-    .tag-real { background: rgba(16,185,129,0.18); color: var(--green); }
-    .tag-sync { background: rgba(6,182,212,0.18); color: var(--cyan); }
-    .tag-sim  { background: rgba(245,158,11,0.18); color: var(--amber); }
+    .tag-online  { background: rgba(16,185,129,0.18); color: var(--green); }
+    .tag-waiting { background: rgba(6,182,212,0.18); color: var(--cyan); }
+    .tag-sim     { background: rgba(245,158,11,0.18); color: var(--amber); }
+
+    /* Per-Station Hardware vs Simulation Switch */
+    .zone-mode-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      background: var(--bg); padding: 5px 8px; border-radius: 7px; margin-bottom: 8px;
+      border: 1px solid var(--border); font-size: 11px;
+    }
+    .mini-switch { position: relative; display: inline-block; width: 36px; height: 18px; }
+    .mini-switch input { opacity: 0; width: 0; height: 0; }
+    .mini-slider {
+      position: absolute; cursor: pointer; inset: 0; background: var(--amber); transition: .2s; border-radius: 18px;
+    }
+    .mini-slider:before {
+      position: absolute; content: ""; height: 12px; width: 12px; left: 3px; bottom: 3px;
+      background: #fff; transition: .2s; border-radius: 50%;
+    }
+    /* Checked = Thiết bị thật (Màu xanh lá), Unchecked = Mô phỏng (Màu vàng cam) */
+    input:checked + .mini-slider { background: var(--green); }
+    input:checked + .mini-slider:before { transform: translateX(18px); }
 
     .st-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
     .m-cell { background: var(--bg); padding: 6px; border-radius: 6px; text-align: center; }
@@ -152,8 +159,8 @@
       <div class="brand">
         <div class="brand-icon">⚡</div>
         <div>
-          <h1>HỆ THỐNG GIÁM SÁT THỜI GIAN THỰC & SO SÁNH 10 TRẠM NĂNG LƯỢNG (PZEM-004T)</h1>
-          <p>Kiến trúc Hybrid: <strong>Trạm 1 (Phần cứng thật)</strong> + <strong>Trạm 2..10 (Đồng bộ / Mô phỏng)</strong> &bull; Cập nhật: <span id="clockTxt">--:--:--</span></p>
+          <h1>HỆ THỐNG GIÁM SÁT THỜI GIAN THỰC & SO SÁNH 10 KHU VỰC TÒA NHÀ 2 TẦNG</h1>
+          <p>Kiến trúc mở rộng linh hoạt: Gạt chuyển từng khu vực giữa <strong>Thiết bị thật (ESP32 + PZEM-004T)</strong> và <strong>Mô phỏng</strong> &bull; Cập nhật: <span id="clockTxt">--:--:--</span></p>
         </div>
       </div>
       <div class="live-pill" id="liveBadge">● LIVE &bull; ĐANG GIÁM SÁT</div>
@@ -176,41 +183,33 @@
         <input type="number" class="thresh-input" id="threshInput" value="2500" step="100" onchange="saveAndRefresh()">
       </div>
 
-      <button class="btn csv" onclick="exportCSV()">⬇ Xuất báo cáo CSV</button>
-      <span class="btn era-connected" id="eraBadge">🔗 Chờ dữ liệu thật E-Ra (Trạm 1)</span>
+      <button class="btn hybrid" onclick="resetDefaultHybrid()">↺ Mặc định (1 Thật + 9 Mô phỏng)</button>
+      <button class="btn csv" onclick="exportCSV()">⬇ Xuất CSV</button>
 
-      <!-- Nút gạt chuyển chế độ 9 trạm -->
-      <div class="mode-switch-wrap">
-        <span id="lblSync" style="font-weight:700; color:var(--cyan);">9 Trạm lấy từ Trạm 1</span>
-        <label class="switch">
-          <input type="checkbox" id="simModeToggle" onchange="toggleSimMode()">
-          <span class="slider"></span>
-        </label>
-        <span id="lblSim" style="font-weight:700; color:var(--muted);">9 Trạm mô phỏng</span>
-      </div>
+      <div class="hw-summary" id="hwSummaryBadge">Cấu hình: 1 Thiết bị thật • 9 Mô phỏng</div>
     </div>
   </div>
 
   <!-- 4 KPI Cards -->
   <div class="kpi-grid">
     <div class="kpi">
-      <div class="kpi-lbl">Tổng công suất 10 trạm</div>
+      <div class="kpi-lbl">Tổng công suất 10 khu vực</div>
       <div class="kpi-val" id="kpiTotalP">0.00 kW</div>
-      <div class="kpi-sub"><span>Tỷ trọng Trạm 1 (Thật):</span><span id="kpiShare" style="color:var(--cyan); font-weight:700;">0%</span></div>
+      <div class="kpi-sub"><span>Tổng tải thiết bị thật:</span><span id="kpiRealShare" style="color:var(--green); font-weight:700;">Chưa kết nối</span></div>
     </div>
     <div class="kpi">
       <div class="kpi-lbl">Tổng điện năng tích lũy</div>
       <div class="kpi-val" id="kpiTotalE">0.00 kWh</div>
-      <div class="kpi-sub"><span id="kpiSt1E">Trạm 1: 0.00 kWh</span><span id="kpiRelayCount">Relay bật: 20/20</span></div>
+      <div class="kpi-sub"><span id="kpiSt1E">Trạm 1: -- kWh</span><span id="kpiRelayCount">Relay bật: 20/20</span></div>
     </div>
     <div class="kpi">
-      <div class="kpi-lbl">Trạm tiêu thụ cao nhất</div>
+      <div class="kpi-lbl">Khu vực tiêu thụ cao nhất</div>
       <div class="kpi-val" id="kpiMaxP" style="color:var(--amber);">0 W</div>
       <div class="kpi-sub"><span id="kpiMaxName">--</span><span id="kpiMaxI">0.00 A</span></div>
     </div>
     <div class="kpi">
       <div class="kpi-lbl">Cảnh báo quá tải</div>
-      <div class="kpi-val" id="kpiOverload" style="color:var(--green);">0 / 10 Trạm</div>
+      <div class="kpi-val" id="kpiOverload" style="color:var(--green);">0 / 10 Khu vực</div>
       <div class="kpi-sub"><span id="kpiOverloadList">Hệ thống an toàn</span><span id="kpiThreshLbl">&gt; 2500W</span></div>
     </div>
   </div>
@@ -219,7 +218,7 @@
   <div class="charts-grid">
     <div class="chart-box">
       <div class="chart-head">
-        <span class="chart-title">Biểu Đồ So Sánh Trực Tiếp 10 Trạm</span>
+        <span class="chart-title">Biểu Đồ So Sánh Trực Tiếp 10 Khu Vực</span>
         <div class="seg-group" id="metricBtns">
           <button class="seg-btn active" data-m="p" onclick="setMetric('p')">Công suất (W)</button>
           <button class="seg-btn" data-m="i" onclick="setMetric('i')">Dòng điện (A)</button>
@@ -239,41 +238,49 @@
     </div>
   </div>
 
-  <div class="section-title">Chi tiết giám sát & điều khiển phụ tải 10 khu vực (Tòa nhà 2 tầng)</div>
+  <div class="section-title">Chi tiết giám sát & điều khiển phụ tải 10 khu vực (5 khu vực Tầng 1 &bull; 5 khu vực Tầng 2)</div>
   <div class="stations-grid" id="stationsGrid"></div>
 
   <script>
-    const STORAGE_KEY = 'scada_pzem_10_state_v2';
+    const STORAGE_KEY = 'scada_pzem_10_state_v4';
 
+    // Chuẩn hóa đồng đều 100% theo cấp Phòng / Khu vực chức năng (5 Tầng 1 + 5 Tầng 2)
     const stationMeta = [
-      { name: "Trạm 1 • Tủ Tổng Tầng 1", baseP: 850, baseE: 142.6 },
-      { name: "Trạm 2 • Phòng Khách Tầng 1", baseP: 420, baseE: 215.4 },
-      { name: "Trạm 3 • Khu Bếp Tầng 1", baseP: 1650, baseE: 480.2 },
-      { name: "Trạm 4 • Chiếu Sáng Tầng 1", baseP: 210, baseE: 98.5 },
-      { name: "Trạm 5 • Sân & Cổng Tầng 1", baseP: 150, baseE: 76.0 },
-      { name: "Trạm 6 • Phòng Ngủ 1 Tầng 2", baseP: 1280, baseE: 510.8 },
-      { name: "Trạm 7 • Phòng Ngủ 2 Tầng 2", baseP: 1120, baseE: 465.3 },
-      { name: "Trạm 8 • Điều Hòa Tầng 2", baseP: 1950, baseE: 790.1 },
-      { name: "Trạm 9 • Bình Nóng Lạnh T2", baseP: 2250, baseE: 640.9 },
-      { name: "Trạm 10 • Phòng Làm Việc T2", baseP: 540, baseE: 245.7 }
+      { name: "Trạm 1 • Phòng Khách (Tầng 1)", baseP: 650, baseE: 120.0 },
+      { name: "Trạm 2 • Khu Bếp & Phòng Ăn (Tầng 1)", baseP: 1650, baseE: 142.4 },
+      { name: "Trạm 3 • Phòng Ngủ 1 (Tầng 1)", baseP: 980, baseE: 98.2 },
+      { name: "Trạm 4 • Khu Vệ Sinh & Giặt Phơi (Tầng 1)", baseP: 1150, baseE: 84.5 },
+      { name: "Trạm 5 • Sân, Cổng & Hành Lang (Tầng 1)", baseP: 180, baseE: 46.0 },
+      { name: "Trạm 6 • Phòng Ngủ 2 (Tầng 2)", baseP: 1280, baseE: 165.8 },
+      { name: "Trạm 7 • Phòng Ngủ 3 (Tầng 2)", baseP: 1120, baseE: 151.3 },
+      { name: "Trạm 8 • Phòng Làm Việc (Tầng 2)", baseP: 540, baseE: 79.1 },
+      { name: "Trạm 9 • Phòng Sinh Hoạt Chung (Tầng 2)", baseP: 820, baseE: 110.9 },
+      { name: "Trạm 10 • Ban Công & Sân Thượng (Tầng 2)", baseP: 240, baseE: 35.7 }
     ];
 
-    // Khôi phục trạng thái đã lưu trong localStorage (không bị mất khi tải lại trang)
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
     let state = {
       isPaused: saved.isPaused ?? false,
-      isSimMode: saved.isSimMode ?? false, // false = 9 trạm lấy từ Trạm 1; true = 9 trạm mô phỏng
       intervalSec: saved.intervalSec ?? 2,
       threshold: saved.threshold ?? 2500,
       metric: saved.metric ?? 'p',
-      relays: saved.relays ?? Array.from({ length: 10 }, () => ({ r1: true, r2: true }))
+      // hardwareModes[i]: true = Dùng thiết bị thật (ESP32 + PZEM), false = Chạy mô phỏng
+      // Mặc định: Trạm 1 = true (Thiết bị thật), Trạm 2..10 = false (Mô phỏng)
+      hardwareModes: Array.isArray(saved.hardwareModes) && saved.hardwareModes.length === 10
+        ? saved.hardwareModes
+        : [true, false, false, false, false, false, false, false, false, false],
+      relays: Array.isArray(saved.relays) && saved.relays.length === 10
+        ? saved.relays
+        : Array.from({ length: 10 }, () => ({ r1: true, r2: true }))
     };
 
-    // Dữ liệu thực tế Trạm 1 (mặc định giả lập nhẹ khi chưa cắm ESP32, tự ghi đè khi E-Ra gửi data thật)
-    let eraConnected = false;
-    let realStation1 = { u: 221.4, i: 3.92, p: 845.0, e: 142.67, f: 50.0, pf: 0.96 };
+    // Dữ liệu phần cứng độc lập từng trạm từ E-Ra (mỗi trạm chiếm 1 cụm 6 Datastream: V0..V5 cho Trạm 1, V6..V11 cho Trạm 2...)
+    let realHardwareSlots = Array.from({ length: 10 }, () => ({
+      online: false, u: null, i: null, p: null, e: null, f: null, pf: null
+    }));
+
     let stations = stationMeta.map((m, idx) => ({
-      id: idx + 1, name: m.name, u: 221.4, i: 3.92, p: m.baseP, e: m.baseE, f: 50.0, pf: 0.96
+      id: idx + 1, name: m.name, u: null, i: null, p: null, e: m.baseE, f: null, pf: null
     }));
 
     let historyLabels = [];
@@ -284,7 +291,7 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }
 
-    // Kết nối E-Ra IFrame With Config (nhận 6 Datastream V0..V5 của Trạm 1)
+    // Lắng nghe dữ liệu phần cứng thật từ E-Ra IFrame With Config
     let eraConfigs = [];
     try {
       if (typeof EraWidget !== 'undefined') {
@@ -292,29 +299,35 @@
         eraWidget.init({
           onConfiguration: (cfg) => {
             eraConfigs = cfg.realtime_configs || [];
-            document.getElementById('eraBadge').innerText = '✅ Đã liên kết E-Ra (Trạm 1)';
           },
           onValues: (values) => {
             const list = eraConfigs.length > 0
               ? eraConfigs.map(c => values[c.id])
               : Object.values(values);
-            if (list.length > 0 && list[0] && list[0].value !== undefined) {
-              eraConnected = true;
-              document.getElementById('eraBadge').innerText = '🟢 Dữ liệu thật E-Ra (Trạm 1)';
-              if (list[0]?.value != null) realStation1.u  = parseFloat(list[0].value) || 0;
-              if (list[1]?.value != null) realStation1.i  = parseFloat(list[1].value) || 0;
-              if (list[2]?.value != null) realStation1.p  = parseFloat(list[2].value) || 0;
-              if (list[3]?.value != null) realStation1.e  = parseFloat(list[3].value) || 0;
-              if (list[4]?.value != null) realStation1.f  = parseFloat(list[4].value) || 50;
-              if (list[5]?.value != null) realStation1.pf = parseFloat(list[5].value) || 0.95;
-              tickData(true);
+
+            // Duyệt qua các cụm 6 biến (Trạm 1: 0..5, Trạm 2: 6..11, ...)
+            for (let idx = 0; idx < 10; idx++) {
+              const base = idx * 6;
+              const rawU = list[base]?.value;
+              if (rawU !== null && rawU !== undefined && rawU !== '' && !isNaN(parseFloat(rawU))) {
+                realHardwareSlots[idx] = {
+                  online: true,
+                  u:  parseFloat(list[base].value),
+                  i:  list[base + 1]?.value != null ? parseFloat(list[base + 1].value) : 0,
+                  p:  list[base + 2]?.value != null ? parseFloat(list[base + 2].value) : 0,
+                  e:  list[base + 3]?.value != null ? parseFloat(list[base + 3].value) : 0,
+                  f:  list[base + 4]?.value != null ? parseFloat(list[base + 4].value) : 50.0,
+                  pf: list[base + 5]?.value != null ? parseFloat(list[base + 5].value) : 0.0
+                };
+              }
             }
+            tickData(true);
           }
         });
       }
     } catch (e) {}
 
-    // Khởi tạo Chart.js
+    // Khởi tạo biểu đồ
     const barChart = new Chart(document.getElementById('barChart'), {
       type: 'bar',
       data: {
@@ -336,9 +349,9 @@
       data: {
         labels: historyLabels,
         datasets: [
-          { label: 'Trạm 1 (Thật)', data: histSt1, borderColor: '#10b981', tension: 0.3, pointRadius: 2 },
-          { label: 'Trạm cao nhất', data: histMax, borderColor: '#f59e0b', tension: 0.3, pointRadius: 2 },
-          { label: 'Trung bình 10 trạm', data: histAvg, borderColor: '#06b6d4', borderDash: [4,4], tension: 0.3, pointRadius: 0 }
+          { label: 'Trạm 1', data: histSt1, borderColor: '#10b981', tension: 0.3, pointRadius: 2 },
+          { label: 'Khu vực cao nhất', data: histMax, borderColor: '#f59e0b', tension: 0.3, pointRadius: 2 },
+          { label: 'Trung bình 10 khu vực', data: histAvg, borderColor: '#06b6d4', borderDash: [4,4], tension: 0.3, pointRadius: 0 }
         ]
       },
       options: {
@@ -354,57 +367,56 @@
     function tickData(force = false) {
       if (state.isPaused && !force) return;
 
-      // Nếu chưa cắm ESP32 thật, Trạm 1 dao động nhẹ quanh giá trị chuẩn để demo
-      if (!eraConnected) {
-        realStation1.u = +(220.5 + (Math.random() - 0.5) * 2.4).toFixed(1);
-        const rFactor1 = (state.relays[0].r1 ? 0.35 : 0) + (state.relays[0].r2 ? 0.65 : 0);
-        realStation1.p = +(850 * rFactor1 * (1 + (Math.random() - 0.5) * 0.06)).toFixed(1);
-        realStation1.i = +(realStation1.p / (realStation1.u * realStation1.pf)).toFixed(2);
-        realStation1.e = +(realStation1.e + realStation1.p * state.intervalSec / 3600000).toFixed(3);
-      }
+      for (let i = 0; i < 10; i++) {
+        const useHardware = state.hardwareModes[i];
 
-      // Gán Trạm 1
-      stations[0] = { id: 1, name: stationMeta[0].name, ...realStation1 };
-
-      // Gán Trạm 2 -> Trạm 10 theo nút gạt
-      for (let i = 1; i < 10; i++) {
-        const rFactor = (state.relays[i].r1 ? 0.35 : 0) + (state.relays[i].r2 ? 0.65 : 0);
-        if (!state.isSimMode) {
-          // Chế độ đồng bộ dữ liệu từ Trạm 1 thật
-          stations[i] = {
-            id: i + 1,
-            name: stationMeta[i].name,
-            u: realStation1.u,
-            i: +(realStation1.i * rFactor).toFixed(2),
-            p: +(realStation1.p * rFactor).toFixed(1),
-            e: realStation1.e,
-            f: realStation1.f,
-            pf: realStation1.pf
-          };
+        if (useHardware) {
+          // Chế độ Thiết bị thật: đọc từ slot phần cứng độc lập của chính trạm này
+          const slot = realHardwareSlots[i];
+          if (slot.online) {
+            stations[i] = {
+              id: i + 1, name: stationMeta[i].name,
+              u: slot.u, i: slot.i, p: slot.p, e: slot.e, f: slot.f, pf: slot.pf
+            };
+          } else {
+            // Chưa gắn thiết bị thật / chưa kết nối ESP32 -> hiển thị --
+            stations[i] = {
+              id: i + 1, name: stationMeta[i].name,
+              u: null, i: null, p: null, e: null, f: null, pf: null
+            };
+          }
         } else {
-          // Chế độ mô phỏng từng khu vực riêng biệt trong tòa nhà 2 tầng
+          // Chế độ Mô phỏng độc lập cho khu vực chưa lắp phần cứng
+          const rFactor = (state.relays[i].r1 ? 0.35 : 0) + (state.relays[i].r2 ? 0.65 : 0);
           const noise = (Math.random() - 0.5) * 0.14;
           const simP = +(stationMeta[i].baseP * rFactor * (1 + noise)).toFixed(1);
           const simU = +(220 + (Math.random() - 0.5) * 3).toFixed(1);
           const simPF = +(0.89 + Math.random() * 0.09).toFixed(2);
           const simI = +(simP / (simU * simPF)).toFixed(2);
-          stations[i].u = simU;
-          stations[i].i = simI;
-          stations[i].p = simP;
-          stations[i].e = +(stations[i].e + simP * state.intervalSec / 3600000).toFixed(2);
-          stations[i].f = 50.0;
-          stations[i].pf = simPF;
+          const prevE = stations[i].e ?? stationMeta[i].baseE;
+
+          stations[i] = {
+            id: i + 1,
+            name: stationMeta[i].name,
+            u: simU,
+            i: simI,
+            p: simP,
+            e: +(prevE + simP * state.intervalSec / 3600000).toFixed(2),
+            f: 50.0,
+            pf: simPF
+          };
         }
       }
 
       // Cập nhật lịch sử biểu đồ đường
       const nowStr = new Date().toLocaleTimeString('vi-VN');
       document.getElementById('clockTxt').innerText = nowStr;
-      const totalP = stations.reduce((acc, s) => acc + s.p, 0);
-      const maxP = Math.max(...stations.map(s => s.p));
+      const validPowers = stations.map(s => s.p ?? 0);
+      const totalP = validPowers.reduce((a, b) => a + b, 0);
+      const maxP = Math.max(...validPowers);
 
       historyLabels.push(nowStr);
-      histSt1.push(stations[0].p);
+      histSt1.push(stations[0].p ?? 0);
       histMax.push(maxP);
       histAvg.push(+(totalP / 10).toFixed(1));
       if (historyLabels.length > 20) {
@@ -414,27 +426,52 @@
       renderDashboard();
     }
 
+    function fmt(val, unit, dec = 1) {
+      return val === null || val === undefined ? '--' : `${val.toFixed(dec)}${unit}`;
+    }
+
     function renderDashboard() {
-      const totalP = stations.reduce((acc, s) => acc + s.p, 0);
-      const totalE = stations.reduce((acc, s) => acc + s.e, 0);
-      const maxSt = stations.reduce((prev, cur) => (cur.p > prev.p ? cur : prev), stations[0]);
-      const overloads = stations.filter(s => s.p > state.threshold);
+      const totalP = stations.reduce((acc, s) => acc + (s.p ?? 0), 0);
+      const totalE = stations.reduce((acc, s) => acc + (s.e ?? 0), 0);
+      const maxSt = stations.reduce((prev, cur) => ((cur.p ?? 0) > (prev.p ?? 0) ? cur : prev), stations[0]);
+      const overloads = stations.filter(s => (s.p ?? 0) > state.threshold);
       const activeRelays = state.relays.reduce((acc, r) => acc + (r.r1 ? 1 : 0) + (r.r2 ? 1 : 0), 0);
 
+      const hwCount = state.hardwareModes.filter(Boolean).length;
+      const simCount = 10 - hwCount;
+      document.getElementById('hwSummaryBadge').innerText = `Cấu hình: ${hwCount} Thiết bị thật • ${simCount} Mô phỏng`;
+
       document.getElementById('kpiTotalP').innerText = `${(totalP / 1000).toFixed(2)} kW`;
-      const share = totalP > 0 ? ((stations[0].p / totalP) * 100).toFixed(1) : 0;
-      document.getElementById('kpiShare').innerText = `${share}% (${stations[0].p.toFixed(0)} W)`;
+
+      // Tổng công suất từ các trạm phần cứng thật đang online
+      let onlineHwPower = 0;
+      let onlineHwCount = 0;
+      stations.forEach((s, idx) => {
+        if (state.hardwareModes[idx] && realHardwareSlots[idx].online && s.p !== null) {
+          onlineHwPower += s.p;
+          onlineHwCount++;
+        }
+      });
+
+      if (onlineHwCount > 0) {
+        document.getElementById('kpiRealShare').innerText = `${onlineHwPower.toFixed(0)} W (${onlineHwCount} trạm online)`;
+      } else {
+        document.getElementById('kpiRealShare').innerText = 'Chờ kết nối phần cứng';
+      }
+
+      document.getElementById('kpiSt1E').innerText = stations[0].e !== null
+        ? `Trạm 1: ${stations[0].e.toFixed(2)} kWh`
+        : 'Trạm 1: -- kWh';
 
       document.getElementById('kpiTotalE').innerText = `${totalE.toFixed(2)} kWh`;
-      document.getElementById('kpiSt1E').innerText = `Trạm 1: ${stations[0].e.toFixed(2)} kWh`;
       document.getElementById('kpiRelayCount').innerText = `Relay bật: ${activeRelays}/20`;
 
-      document.getElementById('kpiMaxP').innerText = `${maxSt.p.toFixed(0)} W`;
-      document.getElementById('kpiMaxName').innerText = maxSt.name;
-      document.getElementById('kpiMaxI').innerText = `${maxSt.i.toFixed(2)} A`;
+      document.getElementById('kpiMaxP').innerText = `${(maxSt.p ?? 0).toFixed(0)} W`;
+      document.getElementById('kpiMaxName').innerText = (maxSt.p ?? 0) > 0 ? maxSt.name : '--';
+      document.getElementById('kpiMaxI').innerText = `${(maxSt.i ?? 0).toFixed(2)} A`;
 
       const ovEl = document.getElementById('kpiOverload');
-      ovEl.innerText = `${overloads.length} / 10 Trạm`;
+      ovEl.innerText = `${overloads.length} / 10 Khu vực`;
       ovEl.style.color = overloads.length > 0 ? '#ef4444' : '#10b981';
       document.getElementById('kpiOverloadList').innerText = overloads.length > 0
         ? `Quá tải: ${overloads.map(o => 'Trạm ' + o.id).join(', ')}`
@@ -444,39 +481,53 @@
       // Cập nhật biểu đồ cột
       const metricMap = { p: 'Công suất (W)', i: 'Dòng điện (A)', u: 'Điện áp (V)', e: 'Điện năng (kWh)' };
       barChart.data.datasets[0].label = metricMap[state.metric];
-      barChart.data.datasets[0].data = stations.map(s => s[state.metric]);
+      barChart.data.datasets[0].data = stations.map(s => s[state.metric] ?? 0);
       barChart.data.datasets[0].backgroundColor = stations.map((s, i) => {
-        if (s.p > state.threshold) return '#ef4444';
-        if (i === 0) return '#10b981';
-        return state.isSimMode ? '#f59e0b' : '#06b6d4';
+        if ((s.p ?? 0) > state.threshold) return '#ef4444';
+        if (state.hardwareModes[i]) return realHardwareSlots[i].online ? '#10b981' : '#06b6d4';
+        return '#f59e0b';
       });
       barChart.update('none');
       lineChart.update('none');
 
-      // Render 10 thẻ trạm
+      // Render 10 thẻ khu vực
       const grid = document.getElementById('stationsGrid');
       grid.innerHTML = stations.map((s, idx) => {
-        const isReal = idx === 0;
-        const isAlert = s.p > state.threshold;
-        const cls = isReal ? 'real' : (state.isSimMode ? 'sim' : 'sync');
-        const tagCls = isReal ? 'tag-real' : (state.isSimMode ? 'tag-sim' : 'tag-sync');
-        const tagTxt = isReal ? 'Phần cứng thật' : (state.isSimMode ? 'Mô phỏng' : 'Đồng bộ Trạm 1');
+        const useHw = state.hardwareModes[idx];
+        const isOnline = realHardwareSlots[idx].online;
+        const isAlert = (s.p ?? 0) > state.threshold;
         const r = state.relays[idx];
 
+        let cardCls = useHw ? (isOnline ? 'hw-online' : 'hw-waiting') : 'sim-mode';
+        let tagCls  = useHw ? (isOnline ? 'tag-online' : 'tag-waiting') : 'tag-sim';
+        let tagTxt  = useHw ? (isOnline ? 'Phần cứng online' : 'Chờ thiết bị thật') : 'Mô phỏng';
+
         return `
-          <div class="st-card ${cls} ${isAlert ? 'alert' : ''}">
+          <div class="st-card ${cardCls} ${isAlert ? 'alert' : ''}">
             <div class="st-top">
               <div class="st-name">${s.name}</div>
               <span class="st-tag ${tagCls}">${tagTxt}</span>
             </div>
-            <div class="st-metrics">
-              <div class="m-cell"><div class="m-k">Điện áp</div><div class="m-v">${s.u.toFixed(1)}V</div></div>
-              <div class="m-cell"><div class="m-k">Dòng điện</div><div class="m-v">${s.i.toFixed(2)}A</div></div>
-              <div class="m-cell"><div class="m-k">Công suất</div><div class="m-v" style="color:${isAlert ? '#ef4444' : '#38bdf8'}">${s.p.toFixed(0)}W</div></div>
-              <div class="m-cell"><div class="m-k">Điện năng</div><div class="m-v">${s.e.toFixed(1)}kWh</div></div>
-              <div class="m-cell"><div class="m-k">Tần số</div><div class="m-v">${s.f.toFixed(1)}Hz</div></div>
-              <div class="m-cell"><div class="m-k">Cos φ</div><div class="m-v">${s.pf.toFixed(2)}</div></div>
+
+            <div class="zone-mode-bar">
+              <span style="color:${useHw ? 'var(--green)' : 'var(--amber)'}; font-weight:700;">
+                ${useHw ? 'Nguồn: Thiết bị thật' : 'Nguồn: Mô phỏng'}
+              </span>
+              <label class="mini-switch" title="Gạt sang phải để dùng Thiết bị thật (ESP32 + PZEM-004T), gạt sang trái để chạy Mô phỏng">
+                <input type="checkbox" ${useHw ? 'checked' : ''} onchange="toggleHardwareMode(${idx})">
+                <span class="mini-slider"></span>
+              </label>
             </div>
+
+            <div class="st-metrics">
+              <div class="m-cell"><div class="m-k">Điện áp</div><div class="m-v">${fmt(s.u, 'V', 1)}</div></div>
+              <div class="m-cell"><div class="m-k">Dòng điện</div><div class="m-v">${fmt(s.i, 'A', 2)}</div></div>
+              <div class="m-cell"><div class="m-k">Công suất</div><div class="m-v" style="color:${isAlert ? '#ef4444' : '#38bdf8'}">${fmt(s.p, 'W', 0)}</div></div>
+              <div class="m-cell"><div class="m-k">Điện năng</div><div class="m-v">${fmt(s.e, 'kWh', 1)}</div></div>
+              <div class="m-cell"><div class="m-k">Tần số</div><div class="m-v">${fmt(s.f, 'Hz', 1)}</div></div>
+              <div class="m-cell"><div class="m-k">Cos φ</div><div class="m-v">${fmt(s.pf, '', 2)}</div></div>
+            </div>
+
             <div class="relay-row">
               <button class="r-btn ${r.r1 ? 'on' : 'off'}" onclick="toggleRelay(${idx}, 'r1')">
                 R1 (Ưu tiên): ${r.r1 ? 'BẬT' : 'TẮT'}
@@ -505,10 +556,6 @@
         liveBadge.style.color = '#10b981';
       }
 
-      document.getElementById('simModeToggle').checked = state.isSimMode;
-      document.getElementById('lblSync').style.color = state.isSimMode ? '#94a3b8' : '#06b6d4';
-      document.getElementById('lblSim').style.color = state.isSimMode ? '#f59e0b' : '#94a3b8';
-
       document.querySelectorAll('[data-sec]').forEach(b => {
         b.classList.toggle('active', Number(b.dataset.sec) === state.intervalSec);
       });
@@ -518,18 +565,23 @@
       document.getElementById('threshInput').value = state.threshold;
     }
 
+    function toggleHardwareMode(idx) {
+      state.hardwareModes[idx] = !state.hardwareModes[idx];
+      persistState();
+      tickData(true);
+    }
+
+    function resetDefaultHybrid() {
+      state.hardwareModes = [true, false, false, false, false, false, false, false, false, false];
+      persistState();
+      tickData(true);
+    }
+
     function togglePause() {
       state.isPaused = !state.isPaused;
       persistState();
       syncControlsUI();
       if (!state.isPaused) tickData(true);
-    }
-
-    function toggleSimMode() {
-      state.isSimMode = document.getElementById('simModeToggle').checked;
-      persistState();
-      syncControlsUI();
-      tickData(true);
     }
 
     function setIntervalSec(sec) {
@@ -559,18 +611,19 @@
     }
 
     function exportCSV() {
-      const headers = ['Tram,Nguon_Du_Lieu,Dien_Ap_V,Dong_Dien_A,Cong_Suat_W,Dien_Nang_kWh,Tan_So_Hz,He_So_PF,Relay_1,Relay_2'];
+      const headers = ['Khu_Vuc,Che_Do,Trang_Thai_Phan_Cung,Dien_Ap_V,Dong_Dien_A,Cong_Suat_W,Dien_Nang_kWh,Tan_So_Hz,He_So_PF,Relay_1,Relay_2'];
       const rows = stations.map((s, i) => [
         `"${s.name}"`,
-        i === 0 ? 'Phan cung that' : (state.isSimMode ? 'Mo phong' : 'Dong bo Tram 1'),
-        s.u, s.i, s.p, s.e, s.f, s.pf,
+        state.hardwareModes[i] ? 'Thiet bi that' : 'Mo phong',
+        state.hardwareModes[i] ? (realHardwareSlots[i].online ? 'Online' : 'Cho ket noi') : 'N/A',
+        s.u ?? '--', s.i ?? '--', s.p ?? '--', s.e ?? '--', s.f ?? '--', s.pf ?? '--',
         state.relays[i].r1 ? 'ON' : 'OFF',
         state.relays[i].r2 ? 'ON' : 'OFF'
       ].join(','));
       const blob = new Blob(['\uFEFF' + headers.concat(rows).join('\n')], { type: 'text/csv;charset=utf-8;' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `bao_cao_10_tram_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.csv`;
+      a.download = `bao_cao_10_khu_vuc_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.csv`;
       a.click();
     }
 
