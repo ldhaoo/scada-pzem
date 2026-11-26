@@ -315,18 +315,17 @@
     const TOPIC_HW       = "tdtu/ldhaoo/scada_pzem_42300291/hw_v2";
     const CLIENT_ID      = "scada_ui_" + Math.random().toString(16).slice(2, 10);
 
-    // 10 màu riêng biệt cho 10 khu vực (đồng bộ giữa cột biểu đồ & thẻ trạm)
     const stationMeta = [
-      { name: "Trạm 1 • Phòng Khách (Tầng 1)",            baseP: 650,  baseE: 0.0, color: "#10b981" }, // Xanh ngọc lục bảo
-      { name: "Trạm 2 • Khu Bếp & Phòng Ăn (Tầng 1)",     baseP: 1650, baseE: 0.0, color: "#f59e0b" }, // Vàng hổ phách
-      { name: "Trạm 3 • Phòng Ngủ 1 (Tầng 1)",            baseP: 980,  baseE: 0.0, color: "#06b6d4" }, // Xanh Cyan
-      { name: "Trạm 4 • Khu Vệ Sinh & Giặt Phơi (Tầng 1)",baseP: 1150, baseE: 0.0, color: "#3b82f6" }, // Xanh dương
-      { name: "Trạm 5 • Sân, Cổng & Hành Lang (Tầng 1)",  baseP: 180,  baseE: 0.0, color: "#8b5cf6" }, // Tím Violet
-      { name: "Trạm 6 • Phòng Ngủ 2 (Tầng 2)",            baseP: 1280, baseE: 0.0, color: "#ec4899" }, // Hồng Magenta
-      { name: "Trạm 7 • Phòng Ngủ 3 (Tầng 2)",            baseP: 1120, baseE: 0.0, color: "#14b8a6" }, // Xanh Teal
-      { name: "Trạm 8 • Phòng Làm Việc (Tầng 2)",         baseP: 540,  baseE: 0.0, color: "#eab308" }, // Vàng tươi
-      { name: "Trạm 9 • Phòng Sinh Hoạt Chung (Tầng 2)",  baseP: 820,  baseE: 0.0, color: "#6366f1" }, // Xanh chàm Indigo
-      { name: "Trạm 10 • Ban Công & Sân Thượng (Tầng 2)", baseP: 240,  baseE: 0.0, color: "#f97316" }  // Cam đậm
+      { name: "Trạm 1 • Phòng Khách (Tầng 1)",            baseP: 650,  baseE: 0.0, color: "#10b981" },
+      { name: "Trạm 2 • Khu Bếp & Phòng Ăn (Tầng 1)",     baseP: 1650, baseE: 0.0, color: "#f59e0b" },
+      { name: "Trạm 3 • Phòng Ngủ 1 (Tầng 1)",            baseP: 980,  baseE: 0.0, color: "#06b6d4" },
+      { name: "Trạm 4 • Khu Vệ Sinh & Giặt Phơi (Tầng 1)",baseP: 1150, baseE: 0.0, color: "#3b82f6" },
+      { name: "Trạm 5 • Sân, Cổng & Hành Lang (Tầng 1)",  baseP: 180,  baseE: 0.0, color: "#8b5cf6" },
+      { name: "Trạm 6 • Phòng Ngủ 2 (Tầng 2)",            baseP: 1280, baseE: 0.0, color: "#ec4899" },
+      { name: "Trạm 7 • Phòng Ngủ 3 (Tầng 2)",            baseP: 1120, baseE: 0.0, color: "#14b8a6" },
+      { name: "Trạm 8 • Phòng Làm Việc (Tầng 2)",         baseP: 540,  baseE: 0.0, color: "#eab308" },
+      { name: "Trạm 9 • Phòng Sinh Hoạt Chung (Tầng 2)",  baseP: 820,  baseE: 0.0, color: "#6366f1" },
+      { name: "Trạm 10 • Ban Công & Sân Thượng (Tầng 2)", baseP: 240,  baseE: 0.0, color: "#f97316" }
     ];
 
     const defaultState = {
@@ -335,7 +334,7 @@
       threshold: 2500,
       metric: 'p',
       hardwareModes: [true, false, false, false, false, false, false, false, false, false],
-      relays: Array.from({ length: 10 }, () => ({ r1: true, r2: true })),
+      relays: Array.from({ length: 10 }, (_, i) => ({ r1: i !== 0, r2: i !== 0 })),
       epochStart: Date.now(),
       updatedAt: 0
     };
@@ -363,7 +362,7 @@
       "wss://broker.hivemq.com:8884/mqtt"
     ];
 
-    // ================= KẾT NỐI MQTT WEBSOCKET ĐỒNG BỘ TỨC THÌ (< 100ms) =================
+    // ================= KẾT NỐI MQTT WEBSOCKET ĐỒNG BỘ TỨC THÌ =================
     function connectRealtimeSync() {
       const badge = document.getElementById('syncBadge');
       if (typeof mqtt === 'undefined') {
@@ -471,14 +470,50 @@
       renderDashboard();
     }
 
-    // ================= NHẬN DỮ LIỆU PHẦN CỨNG TỪ E-RA WIDGET =================
+    // ================= KẾT NỐI E-RA WIDGET (ĐỌC DỮ LIỆU & GỬI LỆNH RELAY) =================
+    let eraWidget = null;
     let eraConfigs = [];
+    let eraActions = [];
+
+    function parseRelayVal(v) {
+      if (v === null || v === undefined || v === '') return null;
+      if (typeof v === 'boolean') return v;
+      const num = Number(v);
+      if (!isNaN(num)) return num === 1;
+      const str = String(v).trim().toLowerCase();
+      if (str === 'on' || str === 'true' || str === 'bật') return true;
+      if (str === 'off' || str === 'false' || str === 'tắt') return false;
+      return null;
+    }
+
+    function sendEraRelayAction(key, turnOn) {
+      if (!eraWidget || !Array.isArray(eraActions) || eraActions.length === 0) {
+        console.warn('[SCADA] Chưa nhận được danh sách Actions từ E-Ra Widget.');
+        return;
+      }
+      // Thứ tự chuẩn đã cài trên E-Ra: [0] Bật R1, [1] Tắt R1, [2] Bật R2, [3] Tắt R2
+      const fallbackIdx = (key === 'r1') ? (turnOn ? 0 : 1) : (turnOn ? 2 : 3);
+      const rKey = (key === 'r1') ? 'r1' : 'r2';
+      const actWord = turnOn ? 'bật' : 'tắt';
+
+      let targetAct = eraActions.find(a => {
+        const n = String(a.name || '').toLowerCase();
+        return n.includes(rKey) && n.includes(actWord);
+      });
+      if (!targetAct) targetAct = eraActions[fallbackIdx];
+
+      if (targetAct && targetAct.id !== undefined) {
+        eraWidget.triggerAction(targetAct.id, null);
+      }
+    }
+
     try {
       if (typeof EraWidget !== 'undefined') {
-        const eraWidget = new EraWidget();
+        eraWidget = new EraWidget();
         eraWidget.init({
           onConfiguration: (cfg) => {
             eraConfigs = cfg.realtime_configs || [];
+            eraActions = cfg.actions || [];
           },
           onValues: (values) => {
             const list = eraConfigs.length > 0
@@ -502,6 +537,44 @@
                 hasUpdate = true;
               }
             }
+
+            // Đồng bộ ngược trạng thái thật của Relay 1 (V6) & Relay 2 (V7) từ E-Ra/ESP32
+            let r1Cfg = eraConfigs.find(c => {
+              const p = String(c.pin ?? c.virtual_pin ?? '').toUpperCase();
+              const n = String(c.name ?? '').toLowerCase();
+              return p === '6' || p === 'V6' || n.includes('relay_1') || n.includes('relay 1') || n === 'r1';
+            });
+            let r2Cfg = eraConfigs.find(c => {
+              const p = String(c.pin ?? c.virtual_pin ?? '').toUpperCase();
+              const n = String(c.name ?? '').toLowerCase();
+              return p === '7' || p === 'V7' || n.includes('relay_2') || n.includes('relay 2') || n === 'r2';
+            });
+            if (!r1Cfg && eraConfigs.length === 8) r1Cfg = eraConfigs[6];
+            if (!r2Cfg && eraConfigs.length === 8) r2Cfg = eraConfigs[7];
+            if (!r1Cfg && eraConfigs.length >= 62) r1Cfg = eraConfigs[60];
+            if (!r2Cfg && eraConfigs.length >= 62) r2Cfg = eraConfigs[61];
+
+            let relayChanged = false;
+            if (r1Cfg && values[r1Cfg.id]) {
+              const b1 = parseRelayVal(values[r1Cfg.id].value);
+              if (b1 !== null && state.relays[0].r1 !== b1) {
+                state.relays[0].r1 = b1;
+                relayChanged = true;
+              }
+            }
+            if (r2Cfg && values[r2Cfg.id]) {
+              const b2 = parseRelayVal(values[r2Cfg.id].value);
+              if (b2 !== null && state.relays[0].r2 !== b2) {
+                state.relays[0].r2 = b2;
+                relayChanged = true;
+              }
+            }
+
+            if (relayChanged) {
+              localStorage.setItem(LOCAL_KEY, JSON.stringify(state));
+              renderDashboard();
+            }
+
             if (hasUpdate) {
               broadcastHardwareSlots();
               tickData(true);
@@ -511,7 +584,7 @@
       }
     } catch (e) {}
 
-    // ================= BỘ SINH SỐ LIỆU ĐỒNG PHA (2 MÀN HÌNH GIỐNG HỆT NHAU) =================
+    // ================= BỘ SINH SỐ LIỆU ĐỒNG PHA =================
     function seededRand(seed) {
       let t = (seed + 0x6D2B79F5) >>> 0;
       t = Math.imul(t ^ (t >>> 15), t | 1);
@@ -683,7 +756,6 @@
         : 'Tất cả dưới ngưỡng';
       document.getElementById('kpiThreshLbl').innerText = `> ${state.threshold}W`;
 
-      // Cập nhật biểu đồ với 10 màu riêng biệt (chuyển đỏ nếu quá tải)
       const metricMap = { p: 'Công suất (W)', i: 'Dòng điện (A)', u: 'Điện áp (V)', e: 'Điện năng (kWh)' };
       barChart.data.datasets[0].label = metricMap[state.metric];
       barChart.data.datasets[0].data = stations.map(s => s[state.metric] ?? 0);
@@ -841,7 +913,14 @@
 
     function toggleRelay(idx, key) {
       if (!isAdmin) return;
-      state.relays[idx][key] = !state.relays[idx][key];
+      const nextState = !state.relays[idx][key];
+      state.relays[idx][key] = nextState;
+
+      // Nếu là Trạm 1 (phần cứng thật), gửi lệnh xuống E-Ra Cloud -> ESP32
+      if (idx === 0) {
+        sendEraRelayAction(key, nextState);
+      }
+
       rebuildHistory();
       tickData(true);
       broadcastAdminState();
@@ -869,7 +948,6 @@
       timerId = setInterval(() => tickData(false), 500);
     }
 
-    // Khởi chạy hệ thống
     syncControlsUI();
     rebuildHistory();
     tickData(true);
