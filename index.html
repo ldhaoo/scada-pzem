@@ -246,7 +246,7 @@
     <div class="kpi">
       <div class="kpi-lbl">Tổng điện năng tích lũy</div>
       <div class="kpi-val" id="kpiTotalE">0.000 kWh</div>
-      <div class="kpi-sub"><span id="kpiSt1E">Trạm 1: -- kWh</span><span id="kpiRelayCount">Relay bật: 20/20</span></div>
+      <div class="kpi-sub"><span id="kpiSt1E">Trạm 1: -- kWh</span><span id="kpiRelayCount">Relay bật: 18/20</span></div>
     </div>
     <div class="kpi">
       <div class="kpi-lbl">Khu vực tiêu thụ cao nhất</div>
@@ -309,10 +309,10 @@
     const ADMIN_PASSWORD = "42300291";
     const AUTH_SIG       = "TDTU_LDHAOO_SCADA_SIG_42300291";
     const AUTH_KEY       = "scada_admin_unlocked_v2";
-    const LOCAL_KEY      = "scada_realtime_state_v7";
+    const LOCAL_KEY      = "scada_realtime_state_v8";
 
-    const TOPIC_STATE    = "tdtu/ldhaoo/scada_pzem_42300291/state_v3";
-    const TOPIC_HW       = "tdtu/ldhaoo/scada_pzem_42300291/hw_v2";
+    const TOPIC_STATE    = "tdtu/ldhaoo/scada_pzem_42300291/state_v4";
+    const TOPIC_HW       = "tdtu/ldhaoo/scada_pzem_42300291/hw_v3";
     const CLIENT_ID      = "scada_ui_" + Math.random().toString(16).slice(2, 10);
 
     const stationMeta = [
@@ -401,7 +401,11 @@
           if (topic === TOPIC_STATE && msg.sig === AUTH_SIG && msg.state) {
             const incoming = msg.state;
             if ((incoming.updatedAt || 0) >= (state.updatedAt || 0)) {
+              const keepSt1Relay = state.relays[0];
               state = { ...defaultState, ...incoming };
+              if (realHardwareSlots[0].online) {
+                state.relays[0] = keepSt1Relay;
+              }
               localStorage.setItem(LOCAL_KEY, JSON.stringify(state));
               syncControlsUI();
               startTimer();
@@ -491,7 +495,7 @@
         console.warn('[SCADA] Chưa nhận được danh sách Actions từ E-Ra Widget.');
         return;
       }
-      // Thứ tự chuẩn đã cài trên E-Ra: [0] Bật R1, [1] Tắt R1, [2] Bật R2, [3] Tắt R2
+      // Thứ tự chuẩn trên E-Ra: [0] Bật R1, [1] Tắt R1, [2] Bật R2, [3] Tắt R2
       const fallbackIdx = (key === 'r1') ? (turnOn ? 0 : 1) : (turnOn ? 2 : 3);
       const rKey = (key === 'r1') ? 'r1' : 'r2';
       const actWord = turnOn ? 'bật' : 'tắt';
@@ -502,8 +506,10 @@
       });
       if (!targetAct) targetAct = eraActions[fallbackIdx];
 
-      if (targetAct && targetAct.id !== undefined) {
-        eraWidget.triggerAction(targetAct.id, null);
+      // Theo chuẩn @eohjsc/era-widget: triggerAction dùng thuộc tính .action (UUID)
+      const actionUUID = targetAct?.action || targetAct?.id;
+      if (actionUUID) {
+        eraWidget.triggerAction(actionUUID, null);
       }
     }
 
@@ -511,6 +517,8 @@
       if (typeof EraWidget !== 'undefined') {
         eraWidget = new EraWidget();
         eraWidget.init({
+          needRealtimeConfigs: true,
+          needActions: true,
           onConfiguration: (cfg) => {
             eraConfigs = cfg.realtime_configs || [];
             eraActions = cfg.actions || [];
@@ -520,50 +528,33 @@
               ? eraConfigs.map(c => values[c.id])
               : Object.values(values);
 
+            // 6 giá trị đầu tiên (index 0..5) luôn là U, I, P, E, F, PF của Trạm 1
             let hasUpdate = false;
-            for (let idx = 0; idx < 10; idx++) {
-              const base = idx * 6;
-              const rawU = list[base]?.value;
-              if (rawU !== null && rawU !== undefined && rawU !== '' && !isNaN(parseFloat(rawU))) {
-                realHardwareSlots[idx] = {
-                  online: true,
-                  u:  parseFloat(list[base].value),
-                  i:  list[base + 1]?.value != null ? parseFloat(list[base + 1].value) : 0,
-                  p:  list[base + 2]?.value != null ? parseFloat(list[base + 2].value) : 0,
-                  e:  list[base + 3]?.value != null ? parseFloat(list[base + 3].value) : 0,
-                  f:  list[base + 4]?.value != null ? parseFloat(list[base + 4].value) : 50.0,
-                  pf: list[base + 5]?.value != null ? parseFloat(list[base + 5].value) : 0.0
-                };
-                hasUpdate = true;
-              }
+            const rawU = list[0]?.value;
+            if (rawU !== null && rawU !== undefined && rawU !== '' && !isNaN(parseFloat(rawU))) {
+              realHardwareSlots[0] = {
+                online: true,
+                u:  parseFloat(list[0].value),
+                i:  list[1]?.value != null ? parseFloat(list[1].value) : 0,
+                p:  list[2]?.value != null ? parseFloat(list[2].value) : 0,
+                e:  list[3]?.value != null ? parseFloat(list[3].value) : 0,
+                f:  list[4]?.value != null ? parseFloat(list[4].value) : 50.0,
+                pf: list[5]?.value != null ? parseFloat(list[5].value) : 0.0
+              };
+              hasUpdate = true;
             }
 
-            // Đồng bộ ngược trạng thái thật của Relay 1 (V6) & Relay 2 (V7) từ E-Ra/ESP32
-            let r1Cfg = eraConfigs.find(c => {
-              const p = String(c.pin ?? c.virtual_pin ?? '').toUpperCase();
-              const n = String(c.name ?? '').toLowerCase();
-              return p === '6' || p === 'V6' || n.includes('relay_1') || n.includes('relay 1') || n === 'r1';
-            });
-            let r2Cfg = eraConfigs.find(c => {
-              const p = String(c.pin ?? c.virtual_pin ?? '').toUpperCase();
-              const n = String(c.name ?? '').toLowerCase();
-              return p === '7' || p === 'V7' || n.includes('relay_2') || n.includes('relay 2') || n === 'r2';
-            });
-            if (!r1Cfg && eraConfigs.length === 8) r1Cfg = eraConfigs[6];
-            if (!r2Cfg && eraConfigs.length === 8) r2Cfg = eraConfigs[7];
-            if (!r1Cfg && eraConfigs.length >= 62) r1Cfg = eraConfigs[60];
-            if (!r2Cfg && eraConfigs.length >= 62) r2Cfg = eraConfigs[61];
-
+            // 2 giá trị tiếp theo (index 6 và 7) là trạng thái Relay_1 (V6) và Relay_2 (V7)
             let relayChanged = false;
-            if (r1Cfg && values[r1Cfg.id]) {
-              const b1 = parseRelayVal(values[r1Cfg.id].value);
+            if (list[6] && list[6].value !== undefined) {
+              const b1 = parseRelayVal(list[6].value);
               if (b1 !== null && state.relays[0].r1 !== b1) {
                 state.relays[0].r1 = b1;
                 relayChanged = true;
               }
             }
-            if (r2Cfg && values[r2Cfg.id]) {
-              const b2 = parseRelayVal(values[r2Cfg.id].value);
+            if (list[7] && list[7].value !== undefined) {
+              const b2 = parseRelayVal(list[7].value);
               if (b2 !== null && state.relays[0].r2 !== b2) {
                 state.relays[0].r2 = b2;
                 relayChanged = true;
