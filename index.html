@@ -203,6 +203,7 @@
         </div>
       </div>
       <div class="status-pills">
+        <div class="sync-pill" id="eraDiagBadge">🔌 E-Ra v9: Đang chờ cấu hình...</div>
         <div class="sync-pill" id="syncBadge">⚡ MQTT Sync: Đang kết nối...</div>
         <div class="live-pill" id="liveBadge">● LIVE &bull; ĐANG GIÁM SÁT</div>
       </div>
@@ -309,10 +310,10 @@
     const ADMIN_PASSWORD = "42300291";
     const AUTH_SIG       = "TDTU_LDHAOO_SCADA_SIG_42300291";
     const AUTH_KEY       = "scada_admin_unlocked_v2";
-    const LOCAL_KEY      = "scada_realtime_state_v8";
+    const LOCAL_KEY      = "scada_realtime_state_v9";
 
-    const TOPIC_STATE    = "tdtu/ldhaoo/scada_pzem_42300291/state_v4";
-    const TOPIC_HW       = "tdtu/ldhaoo/scada_pzem_42300291/hw_v3";
+    const TOPIC_STATE    = "tdtu/ldhaoo/scada_pzem_42300291/state_v5";
+    const TOPIC_HW       = "tdtu/ldhaoo/scada_pzem_42300291/hw_v4";
     const CLIENT_ID      = "scada_ui_" + Math.random().toString(16).slice(2, 10);
 
     const stationMeta = [
@@ -478,6 +479,7 @@
     let eraWidget = null;
     let eraConfigs = [];
     let eraActions = [];
+    const lastRelayCmdTs = { r1: 0, r2: 0 };
 
     function parseRelayVal(v) {
       if (v === null || v === undefined || v === '') return null;
@@ -491,8 +493,9 @@
     }
 
     function sendEraRelayAction(key, turnOn) {
+      const diag = document.getElementById('eraDiagBadge');
       if (!eraWidget || !Array.isArray(eraActions) || eraActions.length === 0) {
-        console.warn('[SCADA] Chưa nhận được danh sách Actions từ E-Ra Widget.');
+        if (diag) diag.innerText = '⚠️ E-Ra v9: Chưa có Actions!';
         return;
       }
       // Thứ tự chuẩn trên E-Ra: [0] Bật R1, [1] Tắt R1, [2] Bật R2, [3] Tắt R2
@@ -506,10 +509,13 @@
       });
       if (!targetAct) targetAct = eraActions[fallbackIdx];
 
-      // Theo chuẩn @eohjsc/era-widget: triggerAction dùng thuộc tính .action (UUID)
       const actionUUID = targetAct?.action || targetAct?.id;
       if (actionUUID) {
         eraWidget.triggerAction(actionUUID, null);
+        if (diag) {
+          diag.innerText = `🔌 E-Ra v9: Đã gửi ${turnOn ? 'BẬT' : 'TẮT'} ${key.toUpperCase()}`;
+          diag.classList.add('connected');
+        }
       }
     }
 
@@ -522,6 +528,13 @@
           onConfiguration: (cfg) => {
             eraConfigs = cfg.realtime_configs || [];
             eraActions = cfg.actions || [];
+            const diag = document.getElementById('eraDiagBadge');
+            if (diag) {
+              diag.innerText = `🔌 E-Ra v9: ${eraConfigs.length} Pin | ${eraActions.length} Action`;
+              if (eraConfigs.length >= 6 && eraActions.length >= 4) {
+                diag.classList.add('connected');
+              }
+            }
           },
           onValues: (values) => {
             const list = eraConfigs.length > 0
@@ -545,15 +558,16 @@
             }
 
             // 2 giá trị tiếp theo (index 6 và 7) là trạng thái Relay_1 (V6) và Relay_2 (V7)
+            const now = Date.now();
             let relayChanged = false;
-            if (list[6] && list[6].value !== undefined) {
+            if (list[6] && list[6].value !== undefined && (now - lastRelayCmdTs.r1 > 2000)) {
               const b1 = parseRelayVal(list[6].value);
               if (b1 !== null && state.relays[0].r1 !== b1) {
                 state.relays[0].r1 = b1;
                 relayChanged = true;
               }
             }
-            if (list[7] && list[7].value !== undefined) {
+            if (list[7] && list[7].value !== undefined && (now - lastRelayCmdTs.r2 > 2000)) {
               const b2 = parseRelayVal(list[7].value);
               if (b2 !== null && state.relays[0].r2 !== b2) {
                 state.relays[0].r2 = b2;
@@ -907,8 +921,8 @@
       const nextState = !state.relays[idx][key];
       state.relays[idx][key] = nextState;
 
-      // Nếu là Trạm 1 (phần cứng thật), gửi lệnh xuống E-Ra Cloud -> ESP32
       if (idx === 0) {
+        lastRelayCmdTs[key] = Date.now();
         sendEraRelayAction(key, nextState);
       }
 
